@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>QR Code + Multiple Image Overlays</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  
+
   <!-- jsQR library for decoding real QR codes -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 
@@ -36,8 +36,9 @@
       padding: 0.5em;
       max-width: 90%;
     }
-    /* Button to enable audio */
+    /* Button that appears after detecting a QR code */
     #enableAudioBtn {
+      display: none; /* hidden by default */
       position: absolute;
       bottom: 20px;
       left: 20px;
@@ -54,7 +55,7 @@
 <body>
   <div id="info">Initializing camera...</div>
 
-  <!-- A button to enable audio on iOS -->
+  <!-- A button that only appears AFTER detecting a QR code -->
   <button id="enableAudioBtn">Enable Audio</button>
 
   <!-- Live camera feed -->
@@ -91,6 +92,9 @@
     let detectionInfo = null;
     let lastDetectionTime = 0;
 
+    // Keep track of whether scanning is active
+    let scanningPaused = false;
+
     // We'll keep one Image() object that we update each time a new code is found.
     const overlayImg = new Image();
 
@@ -104,58 +108,46 @@
     };
 
     // 4) Create an Audio object for your beep/voice
-    const beepSound = new Audio("https://www.9mtx.com/ar_demo/voice1.mp3");
+    const beepSound = new Audio("http://www.9mtx.com/ar/voice1.mp3");
 
-    // By default, hide the video preview until user enables audio (optional)
-    video.style.display = "none";
-
-    // Wait for user gesture before enabling audio (especially on iOS)
-    enableAudioBtn.addEventListener("click", () => {
-      // Try to play audio once (short or silent sound works too)
-      // This initial play is necessary on iOS so subsequent plays are not blocked.
-      beepSound.play()
-        .then(() => {
-          // Now that we've established user gesture, scanning can start.
-          // Hide the button so it's not distracting
-          enableAudioBtn.style.display = "none";
-          
-          // Show the video feed
-          video.style.display = "block";
-
-          // Start the camera + scanning
-          startCameraAndScanning();
-        })
-        .catch(err => {
-          console.warn("Audio playback failed on user gesture:", err);
-          // If playback fails (e.g. phone on silent), scanning can still start,
-          // but iOS might remain silent. 
-          enableAudioBtn.textContent = "Audio Blocked - Try Again";
-        });
+    // When the beep finishes, resume scanning
+    beepSound.addEventListener("ended", () => {
+      enableAudioBtn.style.display = "none"; // Hide the button again
+      scanningPaused = false;                // Resume scanning
     });
 
-    function startCameraAndScanning() {
-      navigator.mediaDevices.getUserMedia(constraints)
-        .then(stream => {
-          video.srcObject = stream;
-          video.play();
-          requestAnimationFrame(tick);
-        })
-        .catch(err => {
-          console.error("Camera access denied:", err);
-          info.textContent = "Error accessing camera: " + err;
-        });
-    }
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        console.error("Camera access denied:", err);
+        info.textContent = "Error accessing camera: " + err;
+      });
+
+    // Handle click on "Enable Audio" button
+    enableAudioBtn.addEventListener("click", () => {
+      // Reset audio to start, then play
+      beepSound.currentTime = 0;
+      beepSound.play().catch(err => {
+        console.warn("Audio playback blocked or failed:", err);
+      });
+    });
 
     function tick(timestamp) {
+      // If scanning is paused, skip scanning but keep drawing video
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Adjust canvas sizes
         overlayCanvas.width = video.videoWidth;
         overlayCanvas.height = video.videoHeight;
+        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+
+      if (!scanningPaused && video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Adjust canvas sizes for scanning
         scanCanvas.width = video.videoWidth;
         scanCanvas.height = video.videoHeight;
-
-        // Draw the camera feed in overlayCanvas
-        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
 
         // Rate-limit scanning: only scan if it's been more than 1s since last detection
         if (timestamp - lastDetectionTime > 1000) {
@@ -166,17 +158,18 @@
           });
 
           if (code) {
+            // Found a QR code
             lastDetectionTime = timestamp;  // update detection time
             detectionInfo = {
               corners: code.location,
               data: code.data
             };
 
-            // Play the audio each time a QR code is detected
-            beepSound.currentTime = 0;  // reset playback position
-            beepSound.play().catch(err => {
-              console.warn("Audio playback blocked or failed:", err);
-            });
+            // Pause scanning so we don't detect multiple codes quickly
+            scanningPaused = true;
+
+            // Show the "Enable Audio" button now that code is detected
+            enableAudioBtn.style.display = "block";
 
             // Check if the decoded text matches one of our codes
             if (codeToImage[code.data]) {
@@ -188,15 +181,15 @@
             }
           }
         }
+      }
 
-        // If we have a recent detection (within the last second), draw that overlay
-        if (detectionInfo && timestamp - lastDetectionTime < 1000) {
-          info.textContent = "QR Data: " + detectionInfo.data;
-          drawCorners(detectionInfo.corners);
-          drawImageOverCode(detectionInfo.corners);
-        } else {
-          info.textContent = "Scanning for QR Code...";
-        }
+      // If we have a recent detection (within the last second), draw the overlay
+      if (detectionInfo && timestamp - lastDetectionTime < 1000) {
+        info.textContent = "QR Data: " + detectionInfo.data;
+        drawCorners(detectionInfo.corners);
+        drawImageOverCode(detectionInfo.corners);
+      } else {
+        info.textContent = "Scanning for QR Code...";
       }
 
       requestAnimationFrame(tick);
