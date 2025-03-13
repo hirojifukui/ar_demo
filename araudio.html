@@ -228,7 +228,7 @@
       // 6c) If scanning is paused (code found) and we have detection info, show overlay
       if (scanningPaused && detectionInfo) {
         info.textContent = "QR Data: " + detectionInfo.data;
-        drawCorners(detectionInfo.corners);
+        //drawCorners(detectionInfo.corners);
         drawImageOverCode(detectionInfo.corners);
       } else {
         // Otherwise, scanning for a new code
