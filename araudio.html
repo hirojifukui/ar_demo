@@ -36,10 +36,26 @@
       padding: 0.5em;
       max-width: 90%;
     }
+    /* Button to enable audio */
+    #enableAudioBtn {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 1000;
+      padding: 1em;
+      font-size: 1em;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <div id="info">Initializing camera...</div>
+
+  <!-- A button to enable audio on iOS -->
+  <button id="enableAudioBtn">Enable Audio</button>
 
   <!-- Live camera feed -->
   <video id="video" autoplay playsinline></video>
@@ -69,6 +85,7 @@
     const scanCanvas = document.getElementById('scanCanvas');
     const scanCtx = scanCanvas.getContext('2d');
     const info = document.getElementById('info');
+    const enableAudioBtn = document.getElementById('enableAudioBtn');
 
     // We'll store info about the latest QR code detection here
     let detectionInfo = null;
@@ -87,18 +104,47 @@
     };
 
     // 4) Create an Audio object for your beep/voice
-    const beepSound = new Audio("https://www.9mtx.com/ar_demo/voice1.mp3"); 
+    const beepSound = new Audio("https://www.9mtx.com/ar_demo/voice1.mp3");
 
-    navigator.mediaDevices.getUserMedia(constraints)
-      .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        requestAnimationFrame(tick);
-      })
-      .catch(err => {
-        console.error("Camera access denied:", err);
-        info.textContent = "Error accessing camera: " + err;
-      });
+    // By default, hide the video preview until user enables audio (optional)
+    video.style.display = "none";
+
+    // Wait for user gesture before enabling audio (especially on iOS)
+    enableAudioBtn.addEventListener("click", () => {
+      // Try to play audio once (short or silent sound works too)
+      // This initial play is necessary on iOS so subsequent plays are not blocked.
+      beepSound.play()
+        .then(() => {
+          // Now that we've established user gesture, scanning can start.
+          // Hide the button so it's not distracting
+          enableAudioBtn.style.display = "none";
+          
+          // Show the video feed
+          video.style.display = "block";
+
+          // Start the camera + scanning
+          startCameraAndScanning();
+        })
+        .catch(err => {
+          console.warn("Audio playback failed on user gesture:", err);
+          // If playback fails (e.g. phone on silent), scanning can still start,
+          // but iOS might remain silent. 
+          enableAudioBtn.textContent = "Audio Blocked - Try Again";
+        });
+    });
+
+    function startCameraAndScanning() {
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+          requestAnimationFrame(tick);
+        })
+        .catch(err => {
+          console.error("Camera access denied:", err);
+          info.textContent = "Error accessing camera: " + err;
+        });
+    }
 
     function tick(timestamp) {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -129,8 +175,7 @@
             // Play the audio each time a QR code is detected
             beepSound.currentTime = 0;  // reset playback position
             beepSound.play().catch(err => {
-              // Some browsers block autoplay if user hasn't interacted yet
-              console.warn("Audio playback failed:", err);
+              console.warn("Audio playback blocked or failed:", err);
             });
 
             // Check if the decoded text matches one of our codes
