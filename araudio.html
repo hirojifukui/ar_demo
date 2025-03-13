@@ -36,26 +36,27 @@
       padding: 0.5em;
       max-width: 90%;
     }
-    /* Button that appears after detecting a QR code (only if audio isn't enabled yet) */
+    /* Center the "Enable Audio" button on the screen */
     #enableAudioBtn {
-      display: none; /* hidden by default */
+      display: none;
       position: absolute;
-      bottom: 20px;
-      left: 20px;
-      z-index: 1000;
+      top: 50%;            /* position at vertical center */
+      left: 50%;           /* position at horizontal center */
+      transform: translate(-50%, -50%); /* adjust for button width/height */
       padding: 1em;
       font-size: 1em;
       background: #333;
       color: #fff;
       border: none;
       cursor: pointer;
+      z-index: 1000;
     }
   </style>
 </head>
 <body>
   <div id="info">Initializing camera...</div>
 
-  <!-- A button that appears AFTER detecting a QR code, ONLY if audio isn't yet enabled -->
+  <!-- A button that appears AFTER detecting the first QR code, ONLY if audio isn't enabled yet -->
   <button id="enableAudioBtn">Enable Audio</button>
 
   <!-- Live camera feed -->
@@ -70,7 +71,6 @@
   <script>
     /************************************************************************
      * 1) Lookup maps: codeToImage, codeToAudio
-     *    - Replace these URLs with your own as needed.
      ************************************************************************/
     const codeToImage = {
       "01": "https://www.myrisu.com/us/img/method03.png",
@@ -83,7 +83,7 @@
     };
 
     const codeToAudio = {
-      "01": "https://www.9mtx.com/ar_demo/voice1.mp3",  // or "audio/01.mp3" etc
+      "01": "https://www.9mtx.com/ar_demo/voice1.mp3",
       "02": "https://www.9mtx.com/ar_demo/voice2.mp3",
       "03": "https://www.9mtx.com/ar_demo/voice3.mp3",
       "04": "https://www.9mtx.com/ar_demo/voice4.mp3",
@@ -103,11 +103,9 @@
     const info = document.getElementById('info');
     const enableAudioBtn = document.getElementById('enableAudioBtn');
 
-    // We'll store info about the latest QR code detection here
-    let detectionInfo = null;
-    // Manage scanning + audio states
-    let scanningPaused = false;
-    let audioEnabled = false;  // We'll set to true after user allows audio once
+    let detectionInfo = null;          // Data of the latest QR code
+    let scanningPaused = false;        // Whether scanning is paused
+    let audioEnabled = false;          // True after user enables audio once
 
     // We'll keep one Image() object that we update each time a new code is found.
     const overlayImg = new Image();
@@ -135,30 +133,28 @@
       });
 
     /************************************************************************
-     * 4) Create an <audio> element on-the-fly
-     *    We'll swap out its .src for each detected code, if available.
+     * 4) Audio Element
      ************************************************************************/
     const qrAudio = new Audio();
-
-    // Once the audio ends, hide the button and resume scanning.
     qrAudio.addEventListener("ended", () => {
-      enableAudioBtn.style.display = "none";
+      // When audio finishes, resume scanning and clear detection
       scanningPaused = false;
-      detectionInfo = null;  // Clear old detection so we can detect a fresh code
+      detectionInfo = null;
     });
 
     /************************************************************************
      * 5) "Enable Audio" button logic
      ************************************************************************/
     enableAudioBtn.addEventListener("click", () => {
-      // If we haven't assigned a particular .src yet (unlikely, but just in case),
-      // fallback to something non-empty so iOS will allow playback.
       if (!qrAudio.src) {
+        // If for some reason no code was assigned, pick a fallback
         qrAudio.src = "https://www.9mtx.com/ar_demo/voice1.mp3";
       }
       qrAudio.currentTime = 0;
       qrAudio.play()
         .then(() => {
+          // As soon as audio starts playing, hide the button
+          enableAudioBtn.style.display = "none";
           audioEnabled = true; // We have user permission now!
         })
         .catch(err => {
@@ -170,7 +166,7 @@
      * 6) Main Loop
      ************************************************************************/
     function tick() {
-      // 6a) Draw live video to overlayCanvas so user can see the camera feed
+      // 6a) Draw live video to overlayCanvas
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         overlayCanvas.width = video.videoWidth;
         overlayCanvas.height = video.videoHeight;
@@ -182,11 +178,10 @@
         scanCanvas.width = video.videoWidth;
         scanCanvas.height = video.videoHeight;
 
-        // Draw the current video frame into our hidden scanCanvas
         scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
         const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
         const code = jsQR(imageData.data, scanCanvas.width, scanCanvas.height, {
-          inversionAttempts: "dontInvert",
+          inversionAttempts: "dontInvert"
         });
 
         if (code) {
@@ -197,26 +192,21 @@
             data: code.data
           };
 
-          // Load the corresponding 2D image (if available)
-          if (codeToImage[code.data]) {
-            overlayImg.src = codeToImage[code.data];
-          } else {
-            overlayImg.src = "";
-          }
+          // Load the corresponding 2D image (if any)
+          overlayImg.src = codeToImage[code.data] || "";
 
-          // If there's an audio associated with this code, set it
+          // If there's an audio associated, set it
           if (codeToAudio[code.data]) {
             qrAudio.src = codeToAudio[code.data];
           } else {
-            // If no audio is associated, you can set an empty string or fallback
             qrAudio.src = "";
           }
 
-          // If user has not enabled audio, show the button now
+          // Show the button if audio not yet enabled
           if (!audioEnabled) {
             enableAudioBtn.style.display = "block";
           } else {
-            // Audio is already enabled -> play it automatically
+            // Audio is already enabled => play automatically
             qrAudio.currentTime = 0;
             qrAudio.play().catch(err => {
               console.warn("Audio playback blocked or failed:", err);
@@ -225,13 +215,12 @@
         }
       }
 
-      // 6c) If scanning is paused (code found) and we have detection info, show overlay
+      // 6c) Display info & overlay
       if (scanningPaused && detectionInfo) {
         info.textContent = "QR Data: " + detectionInfo.data;
-        //drawCorners(detectionInfo.corners);
+        // We no longer call drawCorners(detectionInfo.corners);   <=== RED LINE REMOVED
         drawImageOverCode(detectionInfo.corners);
       } else {
-        // Otherwise, scanning for a new code
         if (!detectionInfo) {
           info.textContent = "Scanning for QR Code...";
         }
@@ -241,23 +230,8 @@
     }
 
     /************************************************************************
-     * 7) Drawing Functions (Optional)
+     * 7) Drawing Function (no red line)
      ************************************************************************/
-    // Draw polygon around the code
-    function drawCorners(location) {
-      const { topLeftCorner, topRightCorner, bottomRightCorner, bottomLeftCorner } = location;
-      overlayCtx.beginPath();
-      overlayCtx.moveTo(topLeftCorner.x, topLeftCorner.y);
-      overlayCtx.lineTo(topRightCorner.x, topRightCorner.y);
-      overlayCtx.lineTo(bottomRightCorner.x, bottomRightCorner.y);
-      overlayCtx.lineTo(bottomLeftCorner.x, bottomLeftCorner.y);
-      overlayCtx.closePath();
-      overlayCtx.lineWidth = 3;
-      overlayCtx.strokeStyle = "red";
-      overlayCtx.stroke();
-    }
-
-    // Draw the currently loaded overlay image at the bounding box
     function drawImageOverCode(location) {
       const minX = Math.min(location.topLeftCorner.x, location.bottomLeftCorner.x);
       const maxX = Math.max(location.topRightCorner.x, location.bottomRightCorner.x);
@@ -267,7 +241,6 @@
       const w = maxX - minX;
       const h = maxY - minY;
 
-      // If overlayImg.src is not empty, draw it
       if (overlayImg.src) {
         overlayCtx.drawImage(overlayImg, minX, minY, w, h);
       }
