@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QR Code + 2D Overlay + Per-Code Audio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+  <!-- jsQR library for decoding real QR codes -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: #000;
+    }
+    /* The video and overlayCanvas overlap */
+    #video, #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    /* We'll keep the scanCanvas hidden */
+    #scanCanvas {
+      display: none;
+    }
+    /* Info panel in top-left corner */
+    #info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      padding: 0.5em;
+      max-width: 90%;
+    }
+    /* Center the "Enable Audio" button (hidden initially) */
+    #enableAudioBtn {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 1em;
+      font-size: 1em;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">Initializing camera...</div>
+
+  <button id="enableAudioBtn">Enable Audio</button>
+
+  <!-- Live camera feed -->
+  <video id="video" autoplay playsinline></video>
+
+  <!-- Visible canvas for live feed + overlays (2D image) -->
+  <canvas id="overlayCanvas"></canvas>
+
+  <!-- Hidden canvas for scanning (jsQR) only -->
+  <canvas id="scanCanvas"></canvas>
+
+  <script>
+    /************************************************************************
+     * 1) Lookup: up to 20 QR codes => images + associated audio
+     ************************************************************************/
+    const codeToImage = {
+      "01": "https://www.9mtx.com/ar_demo/uesugi_kenshin.png",
+      "02": "https://www.myrisu.com/us/img/method01.png",
+      "03": "https://www.myrisu.com/us/img/method02.png",
+      "04": "images/04.png",
+      "05": "images/05.png",
+      // ...
+      "20": "images/20.png"
+    };
+
+    const codeToAudio = {
+      "01": "https://www.9mtx.com/ar_demo/uesugi_kenshin.wav",
+      "02": "https://www.9mtx.com/ar_demo/voice2.mp3",
+      "03": "https://www.9mtx.com/ar_demo/voice3.mp3",
+      "04": "https://www.9mtx.com/ar_demo/voice4.mp3",
+      "05": "https://www.9mtx.com/ar_demo/voice5.mp3",
+      // ...
+      "20": "https://www.9mtx.com/ar_demo/voice20.mp3"
+    };
+
+    /************************************************************************
+     * 2) DOM References
+     ************************************************************************/
+    const video = document.getElementById("video");
+    const overlayCanvas = document.getElementById("overlayCanvas");
+    const overlayCtx = overlayCanvas.getContext("2d");
+    const scanCanvas = document.getElementById("scanCanvas");
+    const scanCtx = scanCanvas.getContext("2d");
+    const info = document.getElementById("info");
+    const enableAudioBtn = document.getElementById("enableAudioBtn");
+
+    /************************************************************************
+     * 3) State Variables
+     ************************************************************************/
+    let audioEnabled = false;     // Becomes true after user taps "Enable Audio"
+    let replayFlag = false;       // True if audio is currently playing
+    let firstCodeDetected = false;  // We'll show the "Enable Audio" button only after the first code is detected
+    let lastScanTime = 0;         // For 1-second scanning intervals
+    let currentCodeData = null;   // Holds the last-detected QR code text
+    let currentCodeCorners = null;// Holds the location corners of the last-detected QR code
+
+    const qrAudio = new Audio();  // We'll set .src from codeToAudio once we detect a code
+    const overlayImg = new Image(); // We'll set .src from codeToImage once we detect a code
+
+    /************************************************************************
+     * 4) Audio Ended => replayFlag = false
+     ************************************************************************/
+    qrAudio.addEventListener("ended", () => {
+      replayFlag = false;
+      // Once audio finishes, scanning can trigger a new audio if a code is detected
+      info.textContent = "Scanning for QR Code...";
+    });
+
+    /************************************************************************
+     * 5) "Enable Audio" button logic
+     ************************************************************************/
+    enableAudioBtn.addEventListener("click", () => {
+      audioEnabled = true;
+      enableAudioBtn.style.display = "none";
+
+      // If a code is already detected and we're not in the middle of playing audio,
+      // play it immediately
+      if (currentCodeData && !replayFlag) {
+        startAudioForCurrentCode();
+      }
+    });
+
+    /************************************************************************
+     * 6) Request the Camera
+     ************************************************************************/
+    const constraints = {
+      video: {
+        facingMode: "environment",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        console.error("Camera access denied:", err);
+        info.textContent = "Error accessing camera: " + err;
+      });
+
+    /************************************************************************
+     * 7) The Main Loop => scanning & drawing
+     ************************************************************************/
+    function tick(timestamp) {
+      // Draw live video feed
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        overlayCanvas.width = video.videoWidth;
+        overlayCanvas.height = video.videoHeight;
+        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+
+      // We'll do scanning once every 1 second => so we don't spam decode
+      if (timestamp - lastScanTime >= 1000) {
+        lastScanTime = timestamp;  // record the time
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          scanCanvas.width = video.videoWidth;
+          scanCanvas.height = video.videoHeight;
+
+          // Draw current frame onto scanCanvas
+          scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+          const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+          const code = jsQR(imageData.data, scanCanvas.width, scanCanvas.height, {
+            inversionAttempts: "dontInvert"
+          });
+
+          if (code) {
+            // Found a code => store data + corners
+            currentCodeData = code.data;
+            currentCodeCorners = code.location;
+
+            // If this is the first time we've seen *any* code:
+            if (!firstCodeDetected) {
+              firstCodeDetected = true;
+              // Show "Enable Audio" button once
+              enableAudioBtn.style.display = "block";
+            }
+
+            // Update the overlay image, if any
+            overlayImg.src = codeToImage[currentCodeData] || "";
+
+            // If audio is enabled, and we're not already playing audio, start it
+            if (audioEnabled && !replayFlag) {
+              startAudioForCurrentCode();
+            }
+
+          } else {
+            // No code found in this scan
+            currentCodeData = null;
+            currentCodeCorners = null;
+          }
+        }
+      }
+
+      // Even while audio plays, we keep drawing the overlay at each frame (if code is present)
+      if (currentCodeData && currentCodeCorners) {
+        drawOverlayImage(currentCodeCorners, overlayImg);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    /************************************************************************
+     * 8) Start Audio for the current code (if available) => replayFlag = true
+     ************************************************************************/
+    function startAudioForCurrentCode() {
+      const code = currentCodeData;
+      if (!code) return;  // no code => nothing to play
+
+      if (codeToAudio[code]) {
+        qrAudio.src = codeToAudio[code];
+        // Mark that audio is playing => won't restart until ended
+        replayFlag = true;
+        qrAudio.currentTime = 0;
+        qrAudio.play().catch(err => {
+          console.warn("Audio playback blocked or failed:", err);
+          // If it fails, we reset the flag so we can try again
+          replayFlag = false;
+        });
+      } else {
+        // No audio defined => do nothing special
+        console.log("No audio assigned for code:", code);
+      }
+    }
+
+    /************************************************************************
+     * 9) Draw the 2D image over the QR code bounding box
+     *    (No red lines => we do NOT draw corners or outlines)
+     ************************************************************************/
+    function drawOverlayImage(location, img) {
+      if (!img || !img.src) return;  // no valid image
+
+      // Extract corners
+      const { topLeftCorner, topRightCorner, bottomRightCorner, bottomLeftCorner } = location;
+
+      // Compute bounding box
+      const minX = Math.min(topLeftCorner.x, bottomLeftCorner.x);
+      const maxX = Math.max(topRightCorner.x, bottomRightCorner.x);
+      const minY = Math.min(topLeftCorner.y, topRightCorner.y);
+      const maxY = Math.max(bottomLeftCorner.y, bottomRightCorner.y);
+
+      const w = maxX - minX;
+      const h = maxY - minY;
+
+      // Draw the image in that bounding box
+      overlayCtx.drawImage(img, minX, minY, w, h);
+    }
+  </script>
+</body>
+</html>
