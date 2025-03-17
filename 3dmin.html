@@ -2,20 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Three.js + GLTFLoader Example</title>
+  <title>Three.js (ES Modules) + GLTFLoader</title>
 </head>
 <body>
-  <!-- Step 1: Load three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<!-- 
+  Instead of using <script src="..."> for three.min.js, 
+  we load the ES module version: three.module.js 
+  And also load the example loader from the jsm/ directory.
+-->
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.174.0/build/three.module.js';
+  import { GLTFLoader } from 'https://unpkg.com/three@0.174.0/examples/jsm/loaders/GLTFLoader.js';
 
-  <!-- Step 2: Load GLTFLoader from three.js examples -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+  // Now we have THREE.* and the named GLTFLoader.
+  const scene = new THREE.Scene();
 
-  <!-- Step 3: Now you can safely use THREE.GLTFLoader -->
-  <script>
-    // THREE is defined now; we can do:
-    const gltfLoader = new THREE.GLTFLoader();
-    console.log("Success! gltfLoader created:", gltfLoader);
-  </script>
+  // Make a perspective camera:
+  const camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+  camera.position.z = 3;
+
+  // Make a renderer:
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // Create a loader:
+  const loader = new GLTFLoader();
+
+  loader.load(
+    'path/to/model.glb',
+    (gltf) => {
+      scene.add(gltf.scene);
+    },
+    undefined,
+    (error) => {
+      console.error("Error loading GLB:", error);
+    }
+  );
+
+  // Render loop:
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
 </body>
 </html>
