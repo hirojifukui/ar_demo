@@ -2,22 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Three.js (ES Modules) + GLTFLoader</title>
+  <title>Three.js Importmap Example</title>
 </head>
 <body>
-<!-- 
-  Instead of using <script src="..."> for three.min.js, 
-  we load the ES module version: three.module.js 
-  And also load the example loader from the jsm/ directory.
--->
+<!-- 1) IMPORT MAP tells the browser how to resolve "three" and "three/examples/..." -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
+    "three/examples/jsm/loaders/GLTFLoader.js": 
+      "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/loaders/GLTFLoader.js"
+  }
+}
+</script>
+
+<!-- 2) Now your <script type="module"> can do bare imports -->
 <script type="module">
-  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js';
-  import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/loaders/GLTFLoader.js';
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-  // Now we have THREE.* and the named GLTFLoader.
   const scene = new THREE.Scene();
-
-  // Make a perspective camera:
   const camera = new THREE.PerspectiveCamera(
     60,
     window.innerWidth / window.innerHeight,
@@ -26,26 +30,20 @@
   );
   camera.position.z = 3;
 
-  // Make a renderer:
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  // Create a loader:
   const loader = new GLTFLoader();
-
   loader.load(
-    'path/to/model.glb',
+    'https://www.9mtx.com/ar_demo/3D/castle2.glb',
     (gltf) => {
       scene.add(gltf.scene);
     },
     undefined,
-    (error) => {
-      console.error("Error loading GLB:", error);
-    }
+    (error) => { console.error(error); }
   );
 
-  // Render loop:
   function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
