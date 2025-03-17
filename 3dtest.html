@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QR to 3D Model Display</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+  <!-- jsQR for scanning -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+
+  <!-- THREE.js (core) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <!-- GLTFLoader (for loading .gltf or .glb) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: #000;
+    }
+
+    /* Camera preview and scanning overlap */
+    #video, #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    /* Hidden scanning canvas */
+    #scanCanvas {
+      display: none;
+    }
+
+    /* Info text */
+    #info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 999;
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      padding: 0.5em;
+      max-width: 90%;
+    }
+
+    /* Button for enabling audio (if needed) */
+    #enableAudioBtn {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 1em;
+      font-size: 1em;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      z-index: 1000;
+    }
+
+    /* Fullscreen container for THREE.js */
+    #threeContainer {
+      display: none; /* hidden at first, shown when a QR code is detected */
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      z-index: 10000; /* on top of everything */
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Info label -->
+  <div id="info">Initializing camera...</div>
+
+  <!-- Button for iOS audio policy (if you also want per-code audio) -->
+  <button id="enableAudioBtn">Enable Audio</button>
+
+  <!-- Video for camera preview -->
+  <video id="video" autoplay playsinline></video>
+
+  <!-- Canvas for optional overlays (currently not drawing a red line) -->
+  <canvas id="overlayCanvas"></canvas>
+
+  <!-- Hidden canvas for scanning jsQR -->
+  <canvas id="scanCanvas"></canvas>
+
+  <!-- Full-screen container for the 3D scene -->
+  <div id="threeContainer"></div>
+
+  <script>
+    /***********************************************************
+     * 1) Data structures for code -> model, code -> audio, etc.
+     ***********************************************************/
+    const codeToModel = {
+      "01": "path/to/model1.glb",
+      "02": "path/to/model2.glb",
+      "03": "path/to/model3.glb",
+      // ...
+      "20": "path/to/model20.gltf"
+    };
+
+    const codeToAudio = {
+      "01": "https://www.9mtx.com/ar_demo/voice1.mp3",
+      "02": "https://www.9mtx.com/ar_demo/voice2.mp3",
+      // ...
+    };
+
+    /***********************************************************
+     * 2) DOM references
+     ***********************************************************/
+    const info = document.getElementById("info");
+    const enableAudioBtn = document.getElementById("enableAudioBtn");
+    const video = document.getElementById("video");
+    const overlayCanvas = document.getElementById("overlayCanvas");
+    const overlayCtx = overlayCanvas.getContext("2d");
+    const scanCanvas = document.getElementById("scanCanvas");
+    const scanCtx = scanCanvas.getContext("2d");
+    const threeContainer = document.getElementById("threeContainer");
+
+    /***********************************************************
+     * 3) States
+     ***********************************************************/
+    let audioEnabled = false; // iOS requires user gesture
+    let replayFlag = false;   // if audio is playing, we do not re-start it
+    let scanning = true;      // if scanning is active
+    let lastScanTime = 0;     // for 1s intervals
+    const qrAudio = new Audio(); // re-use for code-based audio
+
+    // three.js items
+    let scene, camera, renderer, gltfLoader;
+    let currentModel = null;  // track the loaded 3D model so we can remove/replace it
+
+    /***********************************************************
+     * 4) Setup or end scanning
+     ***********************************************************/
+    const constraints = {
+      video: {
+        facingMode: "environment",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        console.error("Camera access denied:", err);
+        info.textContent = "Error accessing camera: " + err;
+      });
+
+    /***********************************************************
+     * 5) The main scanning loop
+     ***********************************************************/
+    function tick(timestamp) {
+      if (!scanning) {
+        return; // if we've stopped scanning entirely
+      }
+
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Mirror the camera feed to overlayCanvas
+        overlayCanvas.width = video.videoWidth;
+        overlayCanvas.height = video.videoHeight;
+        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        // Do an actual QR decode only once per ~1 second
+        if (timestamp - lastScanTime > 1000) {
+          lastScanTime = timestamp;
+
+          scanCanvas.width = video.videoWidth;
+          scanCanvas.height = video.videoHeight;
+          scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+
+          const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+          const code = jsQR(imageData.data, scanCanvas.width, scanCanvas.height, {
+            inversionAttempts: "dontInvert"
+          });
+
+          if (code) {
+            info.textContent = "QR Code Data: " + code.data;
+            handleQRCode(code.data);
+          } else {
+            info.textContent = "Scanning for QR Code...";
+          }
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    /***********************************************************
+     * 6) handleQRCode => load the 3D model full screen, etc.
+     ***********************************************************/
+    function handleQRCode(data) {
+      // 6a) AUDIO logic
+      // If we have a code -> audio, and user has tapped "Enable Audio", 
+      // and we are not currently replaying
+      if (codeToAudio[data]) {
+        if (audioEnabled && !replayFlag) {
+          replayFlag = true;
+          qrAudio.src = codeToAudio[data];
+          qrAudio.currentTime = 0;
+          qrAudio.play().catch(err => {
+            console.warn("Audio playback blocked:", err);
+            replayFlag = false;
+          });
+        }
+      }
+
+      // 6b) 3D model logic
+      if (codeToModel[data]) {
+        // Hide the scanning UI
+        video.style.display = "none";
+        overlayCanvas.style.display = "none";
+        threeContainer.style.display = "block";
+
+        // If we haven't set up the three.js scene yet, do it once
+        if (!scene) initThreeJS();
+
+        // Load the new model
+        load3DModel(codeToModel[data]);
+      }
+    }
+
+    /***********************************************************
+     * 7) "Enable Audio" button logic (for iOS)
+     ***********************************************************/
+    enableAudioBtn.addEventListener("click", () => {
+      audioEnabled = true;
+      enableAudioBtn.style.display = "none";
+    });
+
+    // If audio ends, we can set replayFlag to false
+    qrAudio.addEventListener("ended", () => {
+      replayFlag = false;
+    });
+
+    /***********************************************************
+     * 8) Initialize THREE.js for full-screen display
+     ***********************************************************/
+    function initThreeJS() {
+      scene = new THREE.Scene();
+
+      // Simple perspective camera
+      camera = new THREE.PerspectiveCamera(
+        60, 
+        threeContainer.clientWidth / threeContainer.clientHeight,
+        0.1,
+        1000
+      );
+      camera.position.set(0, 1, 3); // e.g. a bit away from origin
+
+      // A basic directional light
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(5, 10, 7);
+      scene.add(light);
+
+      // A hemisphere light for ambient
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+      scene.add(hemiLight);
+
+      // Create a WebGL renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      threeContainer.appendChild(renderer.domElement);
+
+      // Listen for resize
+      window.addEventListener("resize", onWindowResize);
+
+      // GLTF loader
+      gltfLoader = new THREE.GLTFLoader();
+
+      // Start render loop
+      animate();
+    }
+
+    // Resize handler
+    function onWindowResize() {
+      if (!camera || !renderer) return;
+      camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+    }
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    /***********************************************************
+     * 9) Load a 3D model (gltf/glb) with three.js
+     ***********************************************************/
+    function load3DModel(modelUrl) {
+      // Remove old model from scene if needed
+      if (currentModel) {
+        scene.remove(currentModel);
+        currentModel = null;
+      }
+
+      gltfLoader.load(
+        modelUrl,
+        (gltf) => {
+          currentModel = gltf.scene;
+          scene.add(currentModel);
+        },
+        undefined,
+        (error) => {
+          console.error("Error loading model:", error);
+        }
+      );
+    }
+  </script>
+</body>
+</html>
