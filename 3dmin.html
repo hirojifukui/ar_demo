@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Three.js + GLTFLoader Example</title>
+</head>
+<body>
+  <!-- Step 1: Load three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+
+  <!-- Step 2: Load GLTFLoader from three.js examples -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+
+  <!-- Step 3: Now you can safely use THREE.GLTFLoader -->
+  <script>
+    // THREE is defined now; we can do:
+    const gltfLoader = new THREE.GLTFLoader();
+    console.log("Success! gltfLoader created:", gltfLoader);
+  </script>
+</body>
+</html>
