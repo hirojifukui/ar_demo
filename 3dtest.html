@@ -146,8 +146,10 @@
     const qrAudio = new Audio(); // re-use for code-based audio
 
     // three.js items
-    let scene, camera, renderer, gltfLoader;
+    let scene, camera, renderer;
     let currentModel = null;  // track the loaded 3D model so we can remove/replace it
+    const gltfLoader = new THREE.GLTFLoader();
+
 
     /***********************************************************
      * 4) Setup or end scanning
