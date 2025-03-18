@@ -1,13 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Single-Button AR Demo</title>
+  <meta charset="UTF-8">
+  <title>Single-Button AR (Immediate Orientation Request)</title>
 
-  <!-- 
-    1) Import map for Three.js and GLTFLoader 
-       (using version 0.174.0 from jsDelivr)
-  -->
+  <!-- Import map for Three + GLTFLoader -->
   <script type="importmap">
   {
     "imports": {
@@ -20,50 +17,29 @@
 
   <style>
     body {
-      margin: 0;
-      overflow: hidden;
-      background: #000;
-      font-family: sans-serif;
+      margin: 0; overflow: hidden; background: #000; font-family: sans-serif;
     }
-    /* The "Start AR" button in the center */
-    #startBtn {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 1000;
-      padding: 1em 2em;
-      font-size: 1.2em;
-      background: #333;
-      color: #fff;
-      border: none;
-      cursor: pointer;
-    }
-    /* Info panel in top-left corner */
     #info {
-      position: absolute;
-      top: 0; left: 0;
-      z-index: 999;
-      background: rgba(0,0,0,0.5);
-      color: #fff;
-      padding: 0.5em;
+      position: absolute; top: 0; left: 0; z-index: 999;
+      background: rgba(0,0,0,0.5); color: #fff; padding: 0.5em;
       max-width: 90%;
     }
-    /* The camera feed behind the 3D renderer */
+    #startBtn {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000; padding: 1em 2em; font-size: 1.2em;
+      background: #333; color: #fff; border: none; cursor: pointer;
+    }
     #video {
-      display: none; /* hidden until we start AR */
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
+      display: none; /* show it after camera starts */
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
       object-fit: cover;
       z-index: 1;
     }
-    /* Three.js renderer on top of the video */
     #threeContainer {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
       z-index: 2;
     }
   </style>
@@ -71,110 +47,115 @@
 <body>
   <div id="info">Tap "Start AR" to begin</div>
   <button id="startBtn">Start AR</button>
+  
+  <!-- Camera feed behind the 3D scene -->
   <video id="video" playsinline muted autoplay></video>
   <div id="threeContainer"></div>
 
   <script type="module">
-    /***************************************************************
-     * A) Imports from the import map
-     ***************************************************************/
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-    /***************************************************************
-     * B) DOM references and initial state
-     ***************************************************************/
     const infoDiv = document.getElementById('info');
     const startBtn = document.getElementById('startBtn');
     const video = document.getElementById('video');
-    const threeContainer = document.getElementById('threeContainer');
+    const container = document.getElementById('threeContainer');
 
-    let scene, camera, renderer;
-    let model;
-    let deviceOrientationActive = false;  // true after motion permission is granted
+    let scene, camera, renderer, model;
+    let deviceOrientationActive = false;
 
-    /***************************************************************
-     * C) "Start AR" button => single user gesture 
-     *    to request camera + device orientation permissions
-     ***************************************************************/
+    // A small helper to log to screen
+    function setInfo(msg) {
+      console.log(msg);
+      infoDiv.textContent = msg;
+    }
+
     startBtn.addEventListener('click', () => {
-      infoDiv.textContent = "Requesting camera...";
-      // 1) Request camera in user gesture
+      setInfo("Requesting orientation + camera...");
+
+      // 1) Request orientation *immediately* (iOS 13+)
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(response => {
+            if (response === 'granted') {
+              deviceOrientationActive = true;
+              window.addEventListener('deviceorientation', onDeviceOrientation);
+              console.log("Orientation granted!");
+            } else {
+              console.log("Orientation permission NOT granted:", response);
+            }
+          })
+          .catch(err => {
+            console.error("Orientation request error:", err);
+          });
+      } else {
+        // No special request needed for orientation
+        deviceOrientationActive = true;
+        window.addEventListener('deviceorientation', onDeviceOrientation);
+      }
+
+      // 2) Request camera (still in the same click callback)
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(stream => {
+          console.log("Camera granted!");
           video.srcObject = stream;
-          video.style.display = "block"; // show camera feed
+          video.style.display = "block";
           return video.play();
         })
         .then(() => {
-          infoDiv.textContent = "Camera started. Loading 3D...";
-          // Initialize Three.js
-          initThreeScene();
-          animate();
-
-          // 2) Request device orientation in same click
-          requestDeviceOrientation();
-
-          // Hide the Start button
+          console.log("Camera playing. Setting up 3D scene...");
           startBtn.style.display = "none";
+          setInfo("Camera started. Loading model...");
+          initThree();
+          animate();
         })
         .catch(err => {
           console.error("Camera error:", err);
-          infoDiv.textContent = "Error accessing camera: " + err;
+          setInfo("Camera error: " + err);
         });
     });
 
-    /***************************************************************
-     * D) Three.js setup
-     ***************************************************************/
-    function initThreeScene() {
+    function initThree() {
       scene = new THREE.Scene();
-
-      camera = new THREE.PerspectiveCamera(
-        60,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-      );
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
       camera.position.set(0, 1, 5);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      threeContainer.appendChild(renderer.domElement);
+      container.appendChild(renderer.domElement);
 
       // Lights
       const ambient = new THREE.AmbientLight(0xffffff, 0.4);
       scene.add(ambient);
-
       const dirLight = new THREE.DirectionalLight(0xffffff, 1);
       dirLight.position.set(5, 10, 7);
       scene.add(dirLight);
 
-      // Load a 3D model (replace URL with your own if desired)
+      // Load .glb model
       const loader = new GLTFLoader();
       loader.load(
         'https://www.9mtx.com/ar_demo/3D/castle2.glb',
-        (gltf) => {
+        gltf => {
           model = gltf.scene;
           scene.add(model);
 
-          // Center the model at (0,0,0)
+          // center
           const box = new THREE.Box3().setFromObject(model);
           const center = box.getCenter(new THREE.Vector3());
           model.position.sub(center);
 
-          // Move the camera so we see the whole model
           const size = box.getSize(new THREE.Vector3());
           const maxDim = Math.max(size.x, size.y, size.z);
           camera.position.set(0, 0, maxDim * 2);
           camera.lookAt(0, 0, 0);
 
-          infoDiv.textContent = "Model loaded. Tilt phone for orientation.";
+          setInfo("Model loaded. Tilt/rotate phone for orientation.");
         },
         undefined,
-        (error) => {
-          console.error("Model load error:", error);
-          infoDiv.textContent = "Error loading 3D model.";
+        err => {
+          console.error("Model load error:", err);
+          setInfo("Model load error: " + err);
         }
       );
 
@@ -190,47 +171,15 @@
 
     function animate() {
       requestAnimationFrame(animate);
-      if (renderer && scene && camera) {
-        renderer.render(scene, camera);
-      }
+      renderer.render(scene, camera);
     }
 
-    /***************************************************************
-     * E) Device Orientation
-     ***************************************************************/
-    function requestDeviceOrientation() {
-      // On iOS 13+, we need requestPermission inside the user gesture
-      if (typeof DeviceOrientationEvent !== 'undefined' &&
-          typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then((response) => {
-            if (response === 'granted') {
-              deviceOrientationActive = true;
-              window.addEventListener('deviceorientation', onDeviceOrientation);
-              console.log("Device orientation granted!");
-            } else {
-              console.log("Device orientation permission not granted:", response);
-            }
-          })
-          .catch(err => {
-            console.error("Orientation request error:", err);
-          });
-      } else {
-        // Non-iOS or older iOS that doesn't need requestPermission
-        deviceOrientationActive = true;
-        window.addEventListener('deviceorientation', onDeviceOrientation);
-      }
-    }
-
-    function onDeviceOrientation(event) {
-      if (!camera || !deviceOrientationActive) return;
-
-      // alpha: z-axis (0..360), beta: x-axis (-180..180), gamma: y-axis (-90..90)
-      const alpha = event.alpha ? THREE.MathUtils.degToRad(event.alpha) : 0;
-      const beta  = event.beta  ? THREE.MathUtils.degToRad(event.beta)  : 0;
-      const gamma = event.gamma ? THREE.MathUtils.degToRad(event.gamma) : 0;
-
-      // Simple approach to rotate camera
+    // Device orientation => rotate camera
+    function onDeviceOrientation(e) {
+      if (!deviceOrientationActive || !camera) return;
+      const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0;
+      const beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0;
+      const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0;
       camera.rotation.set(beta, alpha, -gamma, 'YXZ');
     }
   </script>
