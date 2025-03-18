@@ -234,6 +234,7 @@
     }
 
     function onDeviceOrientation(event) {
+      console.log('Orientation event!', event.alpha, event.beta, event.gamma);
       if (!camera || !deviceOrientationActive) return;
 
       const alpha = event.alpha ? THREE.MathUtils.degToRad(event.alpha) : 0;
