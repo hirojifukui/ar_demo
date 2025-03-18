@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DeviceOrientation Basic AR Demo (Revised)</title>
+
+  <!-- 1) Import map for three.js and GLTFLoader -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
+      "three/examples/jsm/loaders/GLTFLoader.js":
+        "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/loaders/GLTFLoader.js"
+    }
+  }
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: sans-serif;
+    }
+    /* Camera feed behind the 3D canvas */
+    #video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+    /* 3D canvas on top of the video */
+    #threeContainer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+    #info {
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 999;
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      padding: 0.5em;
+      max-width: 90%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">Initializing page...</div>
+  <!-- The video element: note the muted, autoplay, and playsinline attributes -->
+  <video id="video" playsinline autoplay muted></video>
+  <div id="threeContainer"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+    /************************************************************
+     * A) DOM + State
+     ************************************************************/
+    const infoDiv = document.getElementById('info');
+    const video = document.getElementById('video');
+
+    let scene, camera, renderer;
+    let model;
+    let deviceOrientationActive = false;
+
+    /************************************************************
+     * B) Start camera
+     ************************************************************/
+    infoDiv.textContent = "Requesting camera...";
+    console.log("Requesting camera with facingMode: environment");
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    })
+    .then(stream => {
+      console.log("Camera stream granted:", stream);
+      infoDiv.textContent = "Camera stream granted. Starting video...";
+      video.srcObject = stream;
+      // Explicitly call video.play()
+      return video.play();
+    })
+    .then(() => {
+      console.log("Video is playing!");
+      infoDiv.textContent = "Camera initialized. Move phone to rotate 3D model.";
+      initThreeJS();
+      animate();
+      requestDeviceOrientation();
+    })
+    .catch(err => {
+      console.error("Error accessing camera:", err);
+      infoDiv.textContent = "Error accessing camera: " + err;
+    });
+
+    /************************************************************
+     * C) Three.js Setup
+     ************************************************************/
+    function initThreeJS() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 1, 5);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.getElementById('threeContainer').appendChild(renderer.domElement);
+
+      // Lights
+      const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+      scene.add(ambient);
+      const directional = new THREE.DirectionalLight(0xffffff, 1);
+      directional.position.set(5, 10, 7);
+      scene.add(directional);
+
+      // Load a model
+      const loader = new GLTFLoader();
+      loader.load(
+        'https://www.9mtx.com/ar_demo/3D/castle2.glb',
+        (gltf) => {
+          model = gltf.scene;
+          scene.add(model);
+
+          // Center
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          model.position.sub(center);
+
+          // Reposition camera to see model
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          camera.position.set(0, 0, maxDim * 2);
+          camera.lookAt(0, 0, 0);
+
+          infoDiv.textContent = "Model loaded. Tilt or rotate phone.";
+          console.log("Model loaded successfully.");
+        },
+        undefined,
+        (error) => {
+          console.error("GLB load error:", error);
+          infoDiv.textContent = "Error loading model.";
+        }
+      );
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+      if (!camera || !renderer) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    /************************************************************
+     * D) Device Orientation -> Rotate Camera
+     ************************************************************/
+    function requestDeviceOrientation() {
+      // iOS 13+ requires requestPermission
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then((response) => {
+            if (response === 'granted') {
+              deviceOrientationActive = true;
+              window.addEventListener('deviceorientation', onDeviceOrientation);
+              console.log("Device orientation granted.");
+            } else {
+              infoDiv.textContent += "\nMotion permission denied or not granted.";
+              console.log("Device orientation permission not granted by user.");
+            }
+          })
+          .catch((err) => {
+            console.error("Device orientation request error:", err);
+          });
+      } else {
+        // Non-iOS or older iOS
+        console.log("Device orientation event available without requestPermission");
+        deviceOrientationActive = true;
+        window.addEventListener('deviceorientation', onDeviceOrientation);
+      }
+    }
+
+    function onDeviceOrientation(event) {
+      if (!camera || !deviceOrientationActive) return;
+
+      // Convert alpha/beta/gamma from deg to rad
+      const alpha = event.alpha ? THREE.MathUtils.degToRad(event.alpha) : 0;
+      const beta  = event.beta  ? THREE.MathUtils.degToRad(event.beta)  : 0;
+      const gamma = event.gamma ? THREE.MathUtils.degToRad(event.gamma) : 0;
+
+      // Adjust offsets to match typical phone orientation
+      camera.rotation.set(
+        beta - Math.PI / 2,  // tilt forward/back
+        alpha,               // rotate around y
+        -gamma,              // rotate around z
+        'YXZ'
+      );
+    }
+  </script>
+</body>
+</html>
