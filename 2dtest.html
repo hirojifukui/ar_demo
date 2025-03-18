@@ -267,12 +267,12 @@
       const centerY = (minY + maxY) / 2;
 
       // Double size
-      let newW = 2 * w;
-      let newH = 2 * h;
+      let newW = 4 * w;
+      let newH = 4 * h;
 
       // Re-center
-      let newX = centerX - newW / 2;
-      let newY = centerY - newH / 2;
+      let newX = centerX - newW / 4;
+      let newY = centerY - newH / 4;
 
       // Clamp to canvas
       if (newX < 0) newX = 0;
