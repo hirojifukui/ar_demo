@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Device Orientation AR Demo (Tap to Start)</title>
+
+  <!-- 1) Import map for three.js and GLTFLoader -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
+      "three/examples/jsm/loaders/GLTFLoader.js":
+        "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/loaders/GLTFLoader.js"
+    }
+  }
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: sans-serif;
+    }
+    #info {
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 999;
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      padding: 0.5em;
+      max-width: 90%;
+    }
+    /* Camera feed behind the 3D canvas */
+    #video {
+      display: none; /* Hidden until user taps "Start AR" */
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+    /* 3D container on top */
+    #threeContainer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+    /* Button to begin AR */
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      padding: 1em 2em;
+      font-size: 1.2em;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">Tap "Start AR" to begin</div>
+
+  <!-- Button to start camera + AR -->
+  <button id="startBtn">Start AR</button>
+
+  <!-- Video background -->
+  <video id="video" playsinline muted></video>
+
+  <!-- 3D container -->
+  <div id="threeContainer"></div>
+
+  <script type="module">
+    /***********************************************************
+     * A) Imports
+     ***********************************************************/
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+    /***********************************************************
+     * B) DOM Elements & State
+     ***********************************************************/
+    const infoDiv = document.getElementById('info');
+    const startBtn = document.getElementById('startBtn');
+    const video = document.getElementById('video');
+    const threeContainer = document.getElementById('threeContainer');
+
+    let scene, camera, renderer;
+    let model;
+    let deviceOrientationActive = false;
+
+    /***********************************************************
+     * C) Start AR Button Handler
+     ***********************************************************/
+    startBtn.addEventListener('click', () => {
+      console.log("User tapped Start AR. Requesting camera...");
+      infoDiv.textContent = "Requesting camera permission...";
+
+      // We do getUserMedia in the same user gesture to ensure the prompt appears
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          console.log("Camera granted:", stream);
+          // Show the video on screen
+          video.style.display = "block";
+          video.srcObject = stream;
+          // Also call video.play() in the same gesture if possible
+          
