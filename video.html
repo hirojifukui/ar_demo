@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QR Code + Video Overlay</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: #000;
+    }
+    #video, #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #scanCanvas {
+      display: none;
+    }
+    #info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      padding: 0.5em;
+      max-width: 90%;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">Initializing camera...</div>
+
+  <video id="video" autoplay playsinline></video>
+  <canvas id="overlayCanvas"></canvas>
+  <canvas id="scanCanvas"></canvas>
+
+  <script>
+    // 1) Just an example. Suppose you only want a "video overlay" for code "99".
+    const codeToVideo = {
+      "99": "path/to/some_short_clip.mp4"
+    };
+
+    // The usual references
+    const video = document.getElementById("video");
+    const overlayCanvas = document.getElementById("overlayCanvas");
+    const overlayCtx = overlayCanvas.getContext("2d");
+    const scanCanvas = document.getElementById("scanCanvas");
+    const scanCtx = scanCanvas.getContext("2d");
+    const info = document.getElementById("info");
+
+    let lastScanTime = 0;
+    let currentCodeData = null;
+    let currentCodeCorners = null;
+
+    // 2) Create a separate <video> element (NOT the camera feed) for the overlay
+    const overlayVideo = document.createElement("video");
+    overlayVideo.muted = true; // or false, but be mindful of browser autoplay restrictions
+    overlayVideo.loop = true;  // keep it looping
+    overlayVideo.playsInline = true;
+
+    // 3) Start camera
+    const constraints = {
+      video: {
+        facingMode: "environment",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        console.error("Camera access denied or failed:", err);
+        info.textContent = "Error accessing camera: " + err;
+      });
+
+    function tick(timestamp) {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        overlayCanvas.width = video.videoWidth;
+        overlayCanvas.height = video.videoHeight;
+        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+
+      // Throttle scanning to 1 second
+      if (timestamp - lastScanTime >= 1000) {
+        lastScanTime = timestamp;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          scanCanvas.width = video.videoWidth;
+          scanCanvas.height = video.videoHeight;
+          scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+
+          const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+          const code = jsQR(imageData.data, scanCanvas.width, scanCanvas.height, {
+            inversionAttempts: "dontInvert"
+          });
+
+          if (code) {
+            currentCodeData = code.data;
+            currentCodeCorners = code.location;
+
+            // If we have a short video for this code, set up overlayVideo
+            if (codeToVideo[currentCodeData]) {
+              overlayVideo.src = codeToVideo[currentCodeData];
+              overlayVideo.play().catch(e => console.warn("Overlay video playback blocked:", e));
+            }
+          } else {
+            currentCodeData = null;
+            currentCodeCorners = null;
+          }
+        }
+      }
+
+      // If code is detected, draw the short clip on the canvas
+      if (currentCodeData && currentCodeCorners && codeToVideo[currentCodeData]) {
+        drawVideoOverlay(currentCodeCorners, overlayVideo);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    // 4) Drawing the video, same bounding-box approach (or double-size)
+    function drawVideoOverlay(location, vid) {
+      if (!vid || vid.readyState < 2) return; // not ready to draw
+
+      const { topLeftCorner, topRightCorner, bottomRightCorner, bottomLeftCorner } = location;
+      const minX = Math.min(topLeftCorner.x, bottomLeftCorner.x);
+      const maxX = Math.max(topRightCorner.x, bottomRightCorner.x);
+      const minY = Math.min(topLeftCorner.y, topRightCorner.y);
+      const maxY = Math.max(bottomLeftCorner.y, bottomRightCorner.y);
+
+      const w = maxX - minX;
+      const h = maxY - minY;
+
+      // Double the size, if desired
+      let newW = 2 * w;
+      let newH = 2 * h;
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      let newX = centerX - (newW / 2);
+      let newY = centerY - (newH / 2);
+
+      // Optional clamp so it doesn't overflow the screen
+      if (newX < 0) newX = 0;
+      if (newY < 0) newY = 0;
+      if (newX + newW > overlayCanvas.width) {
+        newW = overlayCanvas.width - newX;
+      }
+      if (newY + newH > overlayCanvas.height) {
+        newH = overlayCanvas.height - newY;
+      }
+
+      overlayCtx.drawImage(vid, newX, newY, newW, newH);
+    }
+  </script>
+</body>
+</html>
