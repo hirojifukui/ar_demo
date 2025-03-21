@@ -175,7 +175,7 @@
       }
 
       // We'll do scanning once every 1 second
-      if (timestamp - lastScanTime >= 10000) {
+      if (timestamp - lastScanTime >= 1000) {
         lastScanTime = timestamp;
         console.log("Scanning for QR code...");
 
