@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>QR Code + Overlay Image (via &lt;img&gt;) + Audio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+  <!-- jsQR library for decoding real QR codes -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: #000; /* 背景黒にしておく */
+    }
+    /* カメラ映像と overlayCanvas は重ねる */
+    #video, #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    /* スキャン用の Canvas は非表示 */
+    #scanCanvas {
+      display: none;
+    }
+    /* 情報表示パネル */
+    #info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      padding: 0.5em;
+      max-width: 90%;
+    }
+    /* Audio 有効化ボタン（初期は非表示） */
+    #enableAudioBtn {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 1em;
+      font-size: 1em;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    /* QR から重ね表示する IMG。最前面に出すために z-index を高くする */
+    #overlayImage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: none;
+      z-index: 998; 
+      pointer-events: none; /* 画像の上でもクリックを通すなら */
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">Initializing camera...</div>
+
+  <button id="enableAudioBtn">Enable Audio</button>
+
+  <!-- カメラ映像 -->
+  <video id="video" autoplay playsinline></video>
+
+  <!-- カメラ映像の上に重ねるための Canvas (デバッグや枠表示用) -->
+  <canvas id="overlayCanvas"></canvas>
+
+  <!-- QR スキャン専用 Canvas (非表示) -->
+  <canvas id="scanCanvas"></canvas>
+
+  <!-- QR コードに対応して重ねる画像用の <img> (gif/静止画) -->
+  <img id="overlayImage" />
+
+  <script>
+    console.log("Script start...");
+
+    /************************************************************************
+     * 1) QRコード対応表 (コード -> 画像URL, 音声URL)
+     ************************************************************************/
+    const codeToImage = {
+      "01": "https://www.9mtx.com/ar_demo/image/uesugi_kenshin.png",
+      "02": "https://www.9mtx.com/ar_demo/image/uesugi_kenshin.gif",
+      "03": "https://www.9mtx.com/ar_demo/image/Rokurokkubi1.png",
+      "04": "https://www.9mtx.com/ar_demo/image/Rokurokkubi2.png",
+      "05": "https://www.9mtx.com/ar_demo/image/MotionGIF_small.gif",  // 動く GIF
+      "06": "https://www.9mtx.com/ar_demo/image/spaceship.png",
+      "07": "https://www.9mtx.com/ar_demo/image/locomo.png",
+    };
+
+    const codeToAudio = {
+      "01": "https://www.9mtx.com/ar_demo/audio/uesugi_kenshin.wav",
+      "02": "https://www.9mtx.com/ar_demo/audio/uesugi_kenshin.wav",
+      "03": "https://www.9mtx.com/ar_demo/audio/rokurokubi2.mp3",
+      "04": "https://www.9mtx.com/ar_demo/audio/rokurokubi3.mp3",
+      "05": "https://www.9mtx.com/ar_demo/audio/rokurokubi1.mp3",
+      "06": "https://www.9mtx.com/ar_demo/audio/spaceship.mp3",
+      "07": "https://www.9mtx.com/ar_demo/audio/ginga999.mp3",
+    };
+
+    /************************************************************************
+     * 2) DOM 参照
+     ************************************************************************/
+    const video = document.getElementById("video");
+    const overlayCanvas = document.getElementById("overlayCanvas");
+    const overlayCtx = overlayCanvas.getContext("2d");
+    const scanCanvas = document.getElementById("scanCanvas");
+    const scanCtx = scanCanvas.getContext("2d");
+    const info = document.getElementById("info");
+    const enableAudioBtn = document.getElementById("enableAudioBtn");
+    const overlayImage = document.getElementById("overlayImage"); // 重ねる画像用
+
+    /************************************************************************
+     * 3) 状態管理
+     ************************************************************************/
+    let audioEnabled = false;     // ユーザが「Audio 有効化」ボタンを押したかどうか
+    let replayFlag = false;       // 音声再生中かどうか
+    let firstCodeDetected = false;// 初めてコードを検出したら true にして Audioボタン表示
+    let lastScanTime = 0;         // 1秒ごとのスキャン用
+    let currentCodeData = null;   // 最後に検出した QR コード
+    let currentCodeCorners = null;// コードの四隅座標
+
+    const qrAudio = new Audio();
+
+    /************************************************************************
+     * 4) Audio 終了イベント
+     ************************************************************************/
+    qrAudio.addEventListener("ended", () => {
+      replayFlag = false;
+      console.log("Audio ended. Setting replayFlag = false.");
+      info.textContent = "Scanning for QR Code...";
+    });
+
+    /************************************************************************
+     * 5) "Enable Audio" ボタン
+     ************************************************************************/
+    enableAudioBtn.addEventListener("click", () => {
+      audioEnabled = true;
+      enableAudioBtn.style.display = "none";
+      console.log("Audio enabled by user.");
+
+      if (currentCodeData && !replayFlag) {
+        startAudioForCurrentCode();
+      }
+    });
+
+    /************************************************************************
+     * 6) カメラ起動
+     ************************************************************************/
+    console.log("Requesting camera access...");
+    const constraints = {
+      video: {
+        facingMode: "environment",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(stream => {
+        console.log("Camera stream acquired.");
+        video.srcObject = stream;
+        video.play();
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        console.error("Camera access denied or failed:", err);
+        info.textContent = "Error accessing camera: " + err;
+      });
+
+    /************************************************************************
+     * 7) メインループ (tick)
+     ************************************************************************/
+    function tick(timestamp) {
+      // カメラ映像が使える場合のみ描画
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        overlayCanvas.width = video.videoWidth;
+        overlayCanvas.height = video.videoHeight;
+
+        // カメラ映像を overlayCanvas に描画
+        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+
+      // 1秒に1回スキャンを実行
+      if (timestamp - lastScanTime >= 1000) {
+        lastScanTime = timestamp;
+        console.log("Scanning for QR code...");
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          scanCanvas.width = video.videoWidth;
+          scanCanvas.height = video.videoHeight;
+
+          // スキャン用に現在の映像を取り込む
+          scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+          const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+          const code = jsQR(imageData.data, scanCanvas.width, scanCanvas.height, {
+            inversionAttempts: "dontInvert"
+          });
+
+          if (code) {
+            console.log("QR Code detected:", code.data);
+            currentCodeData = code.data;
+            currentCodeCorners = code.location;
+
+            if (!firstCodeDetected) {
+              firstCodeDetected = true;
+              enableAudioBtn.style.display = "block";
+            }
+
+            // 画像URLがあれば <img> を更新
+            if (codeToImage[currentCodeData]) {
+              overlayImage.src = codeToImage[currentCodeData];
+            } else {
+              overlayImage.src = "";
+            }
+            // 音声
+            if (audioEnabled && !replayFlag) {
+              startAudioForCurrentCode();
+            }
+          } else {
+            // コードなし => 現在のコード情報をクリア
+            currentCodeData = null;
+            currentCodeCorners = null;
+            // <img> を非表示
+            overlayImage.style.display = "none";
+          }
+        }
+      }
+
+      // 既にコード検出済みの場合、<img> の位置・サイズを更新
+      if (currentCodeData && currentCodeCorners) {
+        updateOverlayImagePosition(currentCodeCorners);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    /************************************************************************
+     * 8) コードに対応する音声を再生開始
+     ************************************************************************/
+    function startAudioForCurrentCode() {
+      const code = currentCodeData;
+      if (!code) return;
+
+      if (codeToAudio[code]) {
+        console.log("Starting audio for code:", code);
+        qrAudio.src = codeToAudio[code];
+        replayFlag = true;
+        qrAudio.currentTime = 0;
+        qrAudio.play().catch(err => {
+          console.warn("Audio playback blocked or failed:", err);
+          replayFlag = false;
+        });
+      } else {
+        console.log("No audio assigned for code:", code);
+      }
+    }
+
+    /************************************************************************
+     * 9) <img> で QR コードを覆う (あるいは拡大して重ねる)
+     ************************************************************************/
+    function updateOverlayImagePosition(location) {
+      const { topLeftCorner, topRightCorner, bottomRightCorner, bottomLeftCorner } = location;
+
+      // コードのバウンディングボックスを計算
+      const minX = Math.min(topLeftCorner.x, bottomLeftCorner.x);
+      const maxX = Math.max(topRightCorner.x, bottomRightCorner.x);
+      const minY = Math.min(topLeftCorner.y, topRightCorner.y);
+      const maxY = Math.max(bottomLeftCorner.y, bottomRightCorner.y);
+
+      // 幅・高さ
+      const w = maxX - minX;
+      const h = maxY - minY;
+
+      // 画像を拡大したい場合は 2倍, 4倍など適宜調整
+      const scale = 4;
+      const newW = w * scale;
+      const newH = h * scale;
+
+      // 中心座標 (QR コードの真ん中)
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      // 画像の左上を (centerX - newW/2, centerY - newH/2) に
+      const left = centerX - (newW / 2);
+      const top  = centerY - (newH / 2);
+
+      // <img> の位置と大きさを設定
+      overlayImage.style.left   = left + "px";
+      overlayImage.style.top    = top + "px";
+      overlayImage.style.width  = newW + "px";
+      overlayImage.style.height = newH + "px";
+
+      // GIF を含め画像を表示
+      overlayImage.style.display = "block";
+    }
+
+    console.log("Script end...");
+  </script>
+</body>
+</html>
