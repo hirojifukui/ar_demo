@@ -384,7 +384,7 @@ function updateOverlayContent(code) {
       const h = maxY - minY;
 
       // 2倍表示にする
-      const scale = 2;
+      const scale = 4;
       const newW = w * scale;
       const newH = h * scale;
 
@@ -392,8 +392,8 @@ function updateOverlayContent(code) {
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
 
-      const left = centerX - (newW / 2);
-      const top  = centerY - (newH / 2);
+      const left = centerX - (newW / 4);
+      const top  = centerY - (newH / 4);
 
       // 表示されている要素を更新 (image or video)
       if (overlayImage.style.display === "block") {
