@@ -143,7 +143,7 @@
       // Load the 3D model
       const loader = new GLTFLoader();
       loader.load(
-        'https://www.9mtx.com/ar_demo/3D/castle_final.glb',
+        'https://www.9mtx.com/ar_demo/3D/castle_joined.glb',
         gltf => {
           model = gltf.scene;
           modelParent.add(model);
@@ -155,8 +155,8 @@
 
           // --- KEY PART: If you see the bottom of the model, rotate it so it stands up. ---
           // Try either -Math.PI/2 or +Math.PI/2 on .x or .y or .z until it faces front.
-          // Example: rotate -90° around X so the model stands upright:
-          model.rotation.x = -Math.PI / 2;
+          // Example: rotate 90° around X so the model stands upright:
+          model.rotation.x = Math.PI / 2;
 
           // Now place camera in front of the model on +Z axis
           const size = box.getSize(new THREE.Vector3());
