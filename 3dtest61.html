@@ -126,7 +126,6 @@
         0.1,
         1000
       );
-      // Initial camera position; we’ll further tweak it after loading the model
       camera.position.set(0, 0, 5);
       camera.lookAt(0, 0, 0);
 
@@ -141,14 +140,14 @@
       dirLight.position.set(5, 10, 7);
       scene.add(dirLight);
 
-      // Create a parent group that we'll rotate with device orientation
+      // Create a parent group to handle device orientation
       modelParent = new THREE.Group();
       scene.add(modelParent);
 
       // Load .glb model
       const loader = new GLTFLoader();
       loader.load(
-        'https://www.9mtx.com/ar_demo/3D/castle_joined.glb',
+        'https://www.9mtx.com/ar_demo/3D/castle_final.glb',
         gltf => {
           model = gltf.scene;
           modelParent.add(model);
@@ -158,18 +157,16 @@
           const center = box.getCenter(new THREE.Vector3());
           model.position.sub(center);
 
-          // If your model is 90° off, rotate it once here:
-          // (Try +Math.PI/2 or -Math.PI/2 depending on the needed direction.)
+          // Rotate the model upright (if it's lying down by default)
           model.rotation.x = -Math.PI / 2;
 
-          // Set camera distance from the side (the X-axis view)
+          // Position camera from the side (X-axis)
           const size = box.getSize(new THREE.Vector3());
           const maxDim = Math.max(size.x, size.y, size.z);
-
           camera.position.set(maxDim * 2, 0, 0);
           camera.lookAt(0, 0, 0);
 
-          setInfo("Model loaded. Tilt/rotate phone to move the modelParent.");
+          setInfo("Model loaded. Tilt/rotate phone to move the model.");
         },
         undefined,
         err => {
@@ -198,13 +195,29 @@
       if (!deviceOrientationActive || !modelParent) return;
 
       // Convert from degrees to radians
-      const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // Z axis
-      const beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0; // X axis
-      const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // Y axis
+      const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // Rotation around Z axis
+      const beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0; // Rotation around X axis
+      const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // Rotation around Y axis
 
-      // Rotate the group (parent), rather than the model directly.
-      // This allows us to keep our initial “corrective” rotation on the model itself.
-      modelParent.rotation.set(beta, alpha, gamma, 'ZXY');
+      /*
+       * Common usage:
+       *   alpha ~ heading (Z axis)
+       *   beta  ~ pitch   (X axis)
+       *   gamma ~ roll    (Y axis)
+       *
+       * By using Euler order 'YXZ':
+       *   1) Y is alpha
+       *   2) X is beta
+       *   3) Z is gamma
+       *
+       * If phone rotation is reversed from what you want, flip the sign (-alpha, for instance).
+       */
+      modelParent.rotation.set(
+        beta,    // X
+        alpha,   // Y
+        -gamma,  // Z (negate gamma if the roll is backwards)
+        'YXZ'
+      );
     }
   </script>
 </body>
