@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lock alpha in Portrait</title>
+  <title>Prevent 360 Flip with Quaternion + Slerp</title>
   <script type="importmap">
   {
     "imports": {
@@ -60,15 +60,14 @@
     let scene, camera, renderer;
     let model, modelParent;
 
-    let deviceOrientationActive = false;
-
-    // We'll store a "locked" alpha value while in portrait
+    // We'll store a "locked" alpha value (yaw) while in portrait.
     let alphaLock = null;
+    let deviceOrientationActive = false;
 
     startBtn.addEventListener('click', () => {
       setInfo("Requesting orientation + camera...");
 
-      // 1) Request orientation (iOS >=13 requires user gesture & permission)
+      // 1) Request orientation (iOS 13+ requires user gesture & permission)
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
@@ -150,7 +149,7 @@
           const center = box.getCenter(new THREE.Vector3());
           model.position.sub(center);
 
-          // If model is lying down, rotate it upright:
+          // If the model is lying down, rotate it upright:
           model.rotation.x = -Math.PI / 2;
 
           // Position the camera from the side (x-axis)
@@ -159,7 +158,7 @@
           camera.position.set(maxDim * 2, 0, 0);
           camera.lookAt(0, 0, 0);
 
-          setInfo("Model loaded. In portrait, yaw (alpha) is locked.");
+          setInfo("Model loaded. No 360 flips now!");
         },
         undefined,
         err => {
@@ -183,65 +182,66 @@
       renderer.render(scene, camera);
     }
 
-    // Get screen orientation in degrees, or 0 if unknown
+    // Orientation logic:
+
+    // 1) getScreenOrientationDegrees: returns 0, 90, 180, -90, or fallback 0
     function getScreenOrientationDegrees() {
       if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
         return window.screen.orientation.angle; // e.g. 0, 90, 180, 270
       }
-      // iOS fallback
+      // iOS fallback:
       if (typeof window.orientation === 'number') {
         return window.orientation; // e.g. 0, 90, -90, 180
       }
       return 0;
     }
 
-    // Check if phone is in portrait orientation
     function isPortraitOrientation() {
       const angle = getScreenOrientationDegrees();
-      // 0 or 180 => portrait
-      // - see if angle is near ±0 or ±180
+      // 0 or 180 => portrait. Some devices might do -180 as well.
       return angle === 0 || angle === 180 || angle === -180;
     }
+
+    // 2) onDeviceOrientation => build a "target quaternion" => slerp to it.
+    const targetQuaternion = new THREE.Quaternion();
 
     function onDeviceOrientation(e) {
       if (!deviceOrientationActive || !modelParent) return;
 
+      // Convert degrees to radians
       let alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // about Z axis
       let beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0; // about X axis
       let gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // about Y axis
 
-      // Optionally reduce sensitivity if desired
+      // For a less jumpy experience, reduce sensitivity if you like
       const sensitivity = 0.75;
       alpha *= sensitivity;
       beta  *= sensitivity;
       gamma *= sensitivity;
 
-      // If we're in portrait, freeze alpha
+      // In portrait, freeze alpha (yaw)
       if (isPortraitOrientation()) {
-        // If alphaLock not set yet, set it now:
         if (alphaLock === null) {
-          alphaLock = alpha; 
+          alphaLock = alpha;
         }
-        // Use the locked alpha
         alpha = alphaLock;
       } else {
-        // If not portrait, clear the alphaLock so we can update yaw normally
+        // Not in portrait => we allow alpha to update
         alphaLock = null;
       }
 
-      // For convenience, let's still do finalGamma = -gamma so rolling the phone left
-      // or right matches the model's rotation. Adjust signs to taste.
+      // We'll do finalGamma = -gamma so that rolling the phone left -> model rolls left
       let finalAlpha = alpha;
       let finalBeta  = beta;
       let finalGamma = -gamma;
 
-      // Euler order 'YXZ' => Y = alpha, X = beta, Z = gamma
-      modelParent.rotation.set(
-        finalBeta,   // X
-        finalAlpha,  // Y
-        finalGamma,  // Z
-        'YXZ'
-      );
+      // Convert Euler to quaternion
+      const euler = new THREE.Euler(finalBeta, finalAlpha, finalGamma, 'YXZ');
+      targetQuaternion.setFromEuler(euler);
+
+      // Slerp from the parent group's current orientation to the target
+      // 0.3 is the interpolation speed (30% each frame). Tweak as needed.
+      modelParent.quaternion.slerp(targetQuaternion, 0.3);
     }
   </script>
 </body>
