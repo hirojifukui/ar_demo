@@ -228,7 +228,7 @@
 
       if (screenOrientationDeg === 0) {
         // Portrait
-        finalAlpha = 0;  // turn phone left/right => rotation around Y
+        finalAlpha = alpha;  // turn phone left/right => rotation around Y
         finalBeta  = beta;   // tilt phone forward/back => rotation around X
         finalGamma = -gamma; // roll phone => rotation around Z
       }
