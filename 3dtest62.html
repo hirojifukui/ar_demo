@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Ignore Alpha in Portrait</title>
+  <title>Lock alpha in Portrait</title>
   <script type="importmap">
   {
     "imports": {
@@ -59,13 +59,11 @@
 
     let scene, camera, renderer;
     let model, modelParent;
+
     let deviceOrientationActive = false;
 
-    // A helper to log to the on-screen div
-    function setInfo(msg) {
-      console.log(msg);
-      infoDiv.textContent = msg;
-    }
+    // We'll store a "locked" alpha value while in portrait
+    let alphaLock = null;
 
     startBtn.addEventListener('click', () => {
       setInfo("Requesting orientation + camera...");
@@ -113,11 +111,15 @@
         });
     });
 
+    function setInfo(msg) {
+      console.log(msg);
+      infoDiv.textContent = msg;
+    }
+
     function initThree() {
       scene = new THREE.Scene();
 
       camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-      // We'll position it further away after we know the model's size
       camera.position.set(0, 0, 5);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -148,7 +150,7 @@
           const center = box.getCenter(new THREE.Vector3());
           model.position.sub(center);
 
-          // If your model is lying down, rotate it upright:
+          // If model is lying down, rotate it upright:
           model.rotation.x = -Math.PI / 2;
 
           // Position the camera from the side (x-axis)
@@ -157,7 +159,7 @@
           camera.position.set(maxDim * 2, 0, 0);
           camera.lookAt(0, 0, 0);
 
-          setInfo("Model loaded. Tilt or roll phone works; alpha is ignored in portrait.");
+          setInfo("Model loaded. In portrait, yaw (alpha) is locked.");
         },
         undefined,
         err => {
@@ -181,7 +183,7 @@
       renderer.render(scene, camera);
     }
 
-    // Helper: screen orientation in degrees, or 0 if unavailable
+    // Get screen orientation in degrees, or 0 if unknown
     function getScreenOrientationDegrees() {
       if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
         return window.screen.orientation.angle; // e.g. 0, 90, 180, 270
@@ -193,55 +195,47 @@
       return 0;
     }
 
-    // Device orientation => rotate modelParent
+    // Check if phone is in portrait orientation
+    function isPortraitOrientation() {
+      const angle = getScreenOrientationDegrees();
+      // 0 or 180 => portrait
+      // - see if angle is near ±0 or ±180
+      return angle === 0 || angle === 180 || angle === -180;
+    }
+
     function onDeviceOrientation(e) {
       if (!deviceOrientationActive || !modelParent) return;
 
-      // Convert degrees to radians
-      let alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // Z axis
-      let beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0; // X axis
-      let gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // Y axis
+      let alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // about Z axis
+      let beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0; // about X axis
+      let gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // about Y axis
 
-      // We can still reduce sensitivity if needed:
+      // Optionally reduce sensitivity if desired
       const sensitivity = 0.75;
       alpha *= sensitivity;
       beta  *= sensitivity;
       gamma *= sensitivity;
 
-      // Check the phone's screen orientation (portrait vs. landscape)
-      let screenOrientationDeg = getScreenOrientationDegrees();
-
-      let finalAlpha, finalBeta, finalGamma;
-
-      if (screenOrientationDeg === 0 || screenOrientationDeg === 180) {
-        // Portrait / Upside-down portrait
-        // => Ignore alpha so turning phone around vertical axis does nothing
-        finalAlpha = 0;        // <--- Force alpha to constant
-        finalBeta  = beta;     // pitch
-        finalGamma = -gamma;   // roll
-      }
-      else if (screenOrientationDeg === 90) {
-        // Landscape turned right
-        // Here we can decide whether to allow alpha or not. Let’s keep it for demonstration:
-        finalAlpha = alpha;
-        finalBeta  = beta;
-        finalGamma = -gamma;
-      }
-      else if (screenOrientationDeg === -90 || screenOrientationDeg === 270) {
-        // Landscape turned left
-        finalAlpha = alpha;
-        finalBeta  = beta;
-        finalGamma = -gamma;
-      }
-      else {
-        // Fallback if we didn't catch another orientation
-        finalAlpha = alpha;
-        finalBeta  = beta;
-        finalGamma = -gamma;
+      // If we're in portrait, freeze alpha
+      if (isPortraitOrientation()) {
+        // If alphaLock not set yet, set it now:
+        if (alphaLock === null) {
+          alphaLock = alpha; 
+        }
+        // Use the locked alpha
+        alpha = alphaLock;
+      } else {
+        // If not portrait, clear the alphaLock so we can update yaw normally
+        alphaLock = null;
       }
 
-      // Now apply these angles to the parent group
-      // 'YXZ' is commonly used for mobile AR, but you can experiment if you prefer a different order
+      // For convenience, let's still do finalGamma = -gamma so rolling the phone left
+      // or right matches the model's rotation. Adjust signs to taste.
+      let finalAlpha = alpha;
+      let finalBeta  = beta;
+      let finalGamma = -gamma;
+
+      // Euler order 'YXZ' => Y = alpha, X = beta, Z = gamma
       modelParent.rotation.set(
         finalBeta,   // X
         finalAlpha,  // Y
