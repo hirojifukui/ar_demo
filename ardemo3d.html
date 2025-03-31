@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Model Upright in Portrait</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
+      "three/examples/jsm/loaders/GLTFLoader.js":
+        "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/loaders/GLTFLoader.js"
+    }
+  }
+  </script>
+
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+    #info {
+      position: absolute; top: 0; left: 0; z-index: 999;
+      background: rgba(0,0,0,0.5); color: #fff; padding: 0.5em;
+      max-width: 90%;
+    }
+    #startBtn {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000; padding: 1em 2em; font-size: 1.2em;
+      background: #333; color: #fff; border: none; cursor: pointer;
+    }
+    #video {
+      display: none; /* show after camera starts */
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+    #threeContainer {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">Tap "Start AR" to begin</div>
+  <button id="startBtn">Start AR</button>
+
+  <!-- Camera feed behind the 3D scene -->
+  <video id="video" playsinline muted autoplay></video>
+  <div id="threeContainer"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+    const infoDiv = document.getElementById('info');
+    const startBtn = document.getElementById('startBtn');
+    const video = document.getElementById('video');
+    const container = document.getElementById('threeContainer');
+
+    let scene, camera, renderer;
+    let model, modelParent;
+    let deviceOrientationActive = false;
+
+    // Locks alpha in portrait if desired
+    let alphaLock = null;
+
+    // We'll slerp to this quaternion each frame
+    const targetQuaternion = new THREE.Quaternion();
+
+    startBtn.addEventListener('click', () => {
+      setInfo("Requesting orientation + camera...");
+
+      // 1) Request orientation (iOS 13+)
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(response => {
+            if (response === 'granted') {
+              deviceOrientationActive = true;
+              window.addEventListener('deviceorientation', onDeviceOrientation);
+            } else {
+              console.log("Orientation NOT granted:", response);
+            }
+          })
+          .catch(err => console.error("Orientation request error:", err));
+      } else {
+        // No special request needed
+        deviceOrientationActive = true;
+        window.addEventListener('deviceorientation', onDeviceOrientation);
+      }
+
+      // 2) Request camera
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          video.srcObject = stream;
+          video.style.display = "block";
+          return video.play();
+        })
+        .then(() => {
+          startBtn.style.display = "none";
+          setInfo("Loading 3D model...");
+          initThree();
+          animate();
+        })
+        .catch(err => {
+          console.error("Camera error:", err);
+          setInfo("Camera error: " + err);
+        });
+    });
+
+    function setInfo(msg) {
+      console.log(msg);
+      infoDiv.textContent = msg;
+    }
+
+    function initThree() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      // We'll compute final camera distance after we know the model's size
+      camera.position.set(0, 0, 5);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      container.appendChild(renderer.domElement);
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      // A parent group for orientation
+      modelParent = new THREE.Group();
+      scene.add(modelParent);
+
+      // Load the 3D model
+      const loader = new GLTFLoader();
+      loader.load(
+        'https://www.9mtx.com/ar_demo/3D/castle_joined.glb',
+        gltf => {
+          model = gltf.scene;
+          modelParent.add(model);
+
+          // Center on origin
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          model.position.sub(center);
+
+          // --- KEY PART: If you see the bottom of the model, rotate it so it stands up. ---
+          // Try either -Math.PI/2 or +Math.PI/2 on .x or .y or .z until it faces front.
+          // Example: rotate 90° around X so the model stands upright:
+          model.rotation.x = Math.PI / 2;
+
+          // Now place camera in front of the model on +Z axis
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          camera.position.set(0, 0, maxDim * 2);
+          camera.lookAt(0, 0, 0);
+
+          setInfo("Model loaded. Should be upright in portrait!");
+        },
+        undefined,
+        err => {
+          console.error("Model load error:", err);
+          setInfo("Model load error: " + err);
+        }
+      );
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+
+    // === Orientation Handling ===
+
+    function getScreenOrientationDegrees() {
+      if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
+        return window.screen.orientation.angle; // e.g. 0, 90, 180, 270
+      }
+      if (typeof window.orientation === 'number') {
+        return window.orientation; // e.g. 0, 90, -90, 180
+      }
+      return 0;
+    }
+
+    function isPortrait() {
+      const angle = getScreenOrientationDegrees();
+      return angle === 0 || angle === 180 || angle === -180;
+    }
+
+    function onDeviceOrientation(e) {
+      if (!deviceOrientationActive || !modelParent) return;
+
+      let alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; // z-axis
+      let beta  = e.beta  ? THREE.MathUtils.degToRad(e.beta)  : 0; // x-axis
+      let gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; // y-axis
+
+      // If too sensitive, reduce:
+      let sensitivity = 1.0; 
+      alpha *= sensitivity;
+      beta  *= sensitivity;
+      gamma *= sensitivity;
+
+      // OPTIONAL: freeze yaw in portrait
+      if (isPortrait()) {
+        if (alphaLock === null) alphaLock = alpha;
+        alpha = alphaLock;
+      } else {
+        alphaLock = null;
+      }
+
+      // Commonly, we do finalAlpha = alpha => Y, finalBeta = -beta => X, finalGamma = -gamma => Z
+      let finalAlpha = alpha;
+      let finalBeta  = -beta;
+      let finalGamma = -gamma;
+
+      // Convert Euler -> quaternion
+      const euler = new THREE.Euler(finalBeta, finalAlpha, finalGamma, 'YXZ');
+      targetQuaternion.setFromEuler(euler);
+
+      // Smoothly slerp to avoid abrupt flips
+      modelParent.quaternion.slerp(targetQuaternion, 0.3);
+    }
+  </script>
+</body>
+</html>
