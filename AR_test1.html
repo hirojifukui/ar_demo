@@ -40,7 +40,7 @@
           Marker: for testing, use preset="hiro". 
           You can print out a Hiro marker from AR.js docs, or create a custom marker 
         -->
-        <a-marker preset="hiro">
+        <!--<a-marker preset="hiro"> -->
           
           <!-- Example 1: House model -->
           <!-- 
@@ -48,23 +48,23 @@
             to keep the correct scale. Place it in a 'models/' folder.  
           -->
           <a-entity
-            gltf-model="url(models/castle.glb)"
+            gltf-model="url(models/castle.gltf)"
             position="0 0 0"
             rotation="0 0 0"
-            scale="0.01 0.01 0.01"
+            scale="0.1 0.1 0.1"
           ></a-entity>
           
           <!-- Example 2: “Outside Walls” or fences (optional) -->
           <!-- 
             If you have separate walls, you can add them as well. 
             Adjust position and scale so they look correct around the house.
-          -->
+        
           <a-entity
             gltf-model="url(models/outside_walls.glb)"
             position="0 0 0"
             rotation="0 0 0"
             scale="1 1 1"
-          ></a-entity>
+          ></a-entity>-->
           
         </a-marker>
         
