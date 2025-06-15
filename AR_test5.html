@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Deferred Location-based AR</title>
     <!-- A-Frame core library -->
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
@@ -9,7 +10,7 @@
       body { margin: 0; overflow: hidden; }
       #start-ar {
         position: absolute;
-        z-index: 1;
+        z-index: 10;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
@@ -20,45 +21,59 @@
         border: none;
         border-radius: 4px;
       }
+      #ar-scene {
+        display: none;
+      }
     </style>
   </head>
   <body>
-    <!-- User gesture button to trigger AR initialization -->
+    <!-- Start button triggers AR.js load and permission prompts -->
     <button id="start-ar">Start AR Experience</button>
 
-    <!-- AR scene without arjs attribute initially -->
+    <!-- Hidden AR scene until after user click -->
     <a-scene
       id="ar-scene"
       embedded
       renderer="logarithmicDepthBuffer: true;"
-      vr-mode-ui="enabled: false">
+      vr-mode-ui="enabled: false"
+      style="width:100vw; height:100vh;">
 
-      <!-- Camera will be enabled for GPS after AR.js loads -->
-      <a-camera gps-camera look-controls="enabled: false"></a-camera>
+      <!-- GPS-based camera -->
+      <a-camera gps-camera="simulateAltitude: true" look-controls="enabled: false"></a-camera>
 
-      <!-- Example entity at fixed GPS location -->
+      <!-- Example 3D model at specific location -->
       <a-entity
-        gps-entity-place="latitude:37.7749; longitude:-122.4194;"
-        gltf-model="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf"
-        scale="5 5 5"
+        gps-entity-place="latitude:37.3612639; longitude:-122.0419314;"
+        gltf-model="./models/castle3.glb"
+        scale="1 1 1"
         animation-mixer>
       </a-entity>
 
+      <!-- Example simple box entity -->
+      <a-box
+        gps-entity-place="latitude:37.7750; longitude:-122.4195;"
+        position="0 0 0"
+        scale="3 3 3">
+      </a-box>
+
+      <!-- Ambient light -->
+      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
     </a-scene>
 
     <script>
-      document.getElementById('start-ar').addEventListener('click', () => {
-        // Dynamically load AR.js only after user gesture
+      const startBtn = document.getElementById('start-ar');
+      const sceneEl = document.getElementById('ar-scene');
+
+      startBtn.addEventListener('click', () => {
+        // Load AR.js script dynamically
         const script = document.createElement('script');
         script.src = 'https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js';
         script.onload = () => {
-          // Initialize AR.js on the scene, triggering location + camera prompts
-          document.getElementById('ar-scene').setAttribute(
-            'arjs',
-            'sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100;'
-          );
-          // Hide the start button
-          document.getElementById('start-ar').style.display = 'none';
+          // Initialize AR.js component with GPS settings
+          sceneEl.setAttribute('arjs', 'embedded: true; sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;');
+          // Show the AR scene and hide the button
+          sceneEl.style.display = 'block';
+          startBtn.style.display = 'none';
         };
         document.head.appendChild(script);
       });
