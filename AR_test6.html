@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>位置情報取得アプリ</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+    button { padding: 0.8rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    .info { margin-top: 1rem; }
+    .info p { margin: 0.4rem 0; }
+  </style>
+</head>
+<body>
+  <h1>現在の緯度・経度を取得</h1>
+  <button id="getLocation">位置情報を取得</button>
+  <div class="info" id="output">
+    <p>緯度: <span id="latitude">-</span></p>
+    <p>経度: <span id="longitude">-</span></p>
+    <p id="status"></p>
+  </div>
+
+  <script>
+    const getLocationBtn = document.getElementById('getLocation');
+    const latElem = document.getElementById('latitude');
+    const lngElem = document.getElementById('longitude');
+    const statusElem = document.getElementById('status');
+
+    getLocationBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        statusElem.textContent = 'このブラウザは位置情報取得に対応していません。';
+        return;
+      }
+      statusElem.textContent = '位置情報を取得中…';
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          latElem.textContent = position.coords.latitude.toFixed(6);
+          lngElem.textContent = position.coords.longitude.toFixed(6);
+          statusElem.textContent = '取得成功';
+        },
+        (error) => {
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              statusElem.textContent = '位置情報の利用が許可されませんでした。';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              statusElem.textContent = '位置情報が利用できません。';
+              break;
+            case error.TIMEOUT:
+              statusElem.textContent = '位置情報の取得に時間がかかり過ぎました。';
+              break;
+            default:
+              statusElem.textContent = '不明なエラーが発生しました。';
+              break;
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  </script>
+</body>
+</html>
