@@ -85,7 +85,7 @@
 
           // カメラ
           const camera = document.createElement('a-camera');
-          camera.setAttribute('gps-camera', '');
+          camera.setAttribute('gps-new-camera', '');
           camera.setAttribute('look-controls', '');
           camera.setAttribute('simulateLatitude', '35.360841');
           camera.setAttribute('simulateLongitude', '133.185307');
@@ -94,7 +94,7 @@
 
           // 3Dモデル
           const model = document.createElement('a-entity');
-          model.setAttribute('gps-entity-place', `latitude: 35.3605451; longitude: 133.1856385`);
+          model.setAttribute('gps-new-entity-place', `latitude: 35.3605451; longitude: 133.1856385`);
           model.setAttribute('gltf-model', 'models/castle3.glb');
           scene.appendChild(model);
 
