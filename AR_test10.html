@@ -21,9 +21,9 @@
   <div id="ar-container"></div>
 
   <script>
-    const btn        = document.getElementById('getLocation');
-    const statusEl   = document.getElementById('status');
-    const arContainer= document.getElementById('ar-container');
+    const btn         = document.getElementById('getLocation');
+    const statusEl    = document.getElementById('status');
+    const arContainer = document.getElementById('ar-container');
 
     // iOS 13+ 向けにデバイス向き権限をリクエスト
     async function requestOrientationPermission() {
@@ -38,7 +38,6 @@
     }
 
     btn.addEventListener('click', async () => {
-      // デバイス向きイベント権限取得
       await requestOrientationPermission();
 
       if (!navigator.geolocation) {
@@ -49,35 +48,43 @@
       statusEl.textContent = '位置情報を取得中…';
       navigator.geolocation.getCurrentPosition(
         ({ coords }) => {
-          const { latitude, longitude } = coords;
-          statusEl.textContent = `緯度: ${latitude.toFixed(6)}\n経度: ${longitude.toFixed(6)}`;
+          const lat = coords.latitude;
+          const lon = coords.longitude;
+          statusEl.textContent = `緯度: ${lat.toFixed(6)}\n経度: ${lon.toFixed(6)}`;
 
-          // ARシーンをインラインで挿入
-          arContainer.innerHTML = `
-            <a-scene
-              embedded
-              vr-mode-ui="enabled: false"
-              renderer="logarithmicDepthBuffer: true"
-              arjs="sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;">
-
-              <!-- デバイス向きセンサーを有効にしたカメラ -->
-              <a-camera gps-new-camera look-controls></a-camera>
-
-              <!-- 取得位置にモデルを配置 -->
-              <a-entity
-                gps-new-entity-place="latitude: ${latitude}; longitude: ${longitude}"
-                gltf-model="models/castle3.glb"
-                scale="1 1 1">
-              </a-entity>
-
-              <!-- 環境光 -->
-              <a-entity light="type: ambient; intensity: 1"></a-entity>
-            </a-scene>
-          `;
-
-          btn.style.display = 'none';
+          // UI 隠す
+          btn.style.display    = 'none';
           statusEl.style.display = 'none';
           arContainer.style.display = 'block';
+
+          // シーン生成
+          const scene = document.createElement('a-scene');
+          scene.setAttribute('embedded', '');
+          scene.setAttribute('vr-mode-ui', 'enabled: false');
+          scene.setAttribute('renderer', 'logarithmicDepthBuffer: true');
+          scene.setAttribute('arjs', 'sourceType: webcam; embedded: true; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;');
+          scene.style.width  = '100%';
+          scene.style.height = '100%';
+
+          // カメラ
+          const camera = document.createElement('a-camera');
+          camera.setAttribute('gps-camera', '');
+          camera.setAttribute('look-controls', '');
+          scene.appendChild(camera);
+
+          // 3Dモデル
+          const model = document.createElement('a-entity');
+          model.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon}`);
+          model.setAttribute('gltf-model', 'models/castle3.glb');
+          model.setAttribute('scale', '1 1 1');
+          scene.appendChild(model);
+
+          // 環境光
+          const light = document.createElement('a-entity');
+          light.setAttribute('light', 'type: ambient; intensity: 1');
+          scene.appendChild(light);
+
+          arContainer.appendChild(scene);
         },
         error => {
           statusEl.textContent = `位置情報取得エラー (${error.code}): ${error.message}`;
