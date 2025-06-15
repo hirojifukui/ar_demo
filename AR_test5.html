@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Location-based AR with A-Frame & AR.js</title>
+    <!-- A-Frame library -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <!-- AR.js for A-Frame -->
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <!-- Optional: rotation-reader component to log device orientation -->
+    <script>
+      AFRAME.registerComponent('rotation-reader', {
+        tick: function () {
+          // Log rotation for debugging
+          console.log(this.el.object3D.rotation);
+        }
+      });
+    </script>
+    <style>
+      body { margin: 0; overflow: hidden; }
+      #instructions {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.5);
+        color: #fff;
+        padding: 10px;
+        font-family: sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="instructions">
+      <p>Allow location and camera access to see AR content at the specified GPS coordinates.</p>
+    </div>
+
+    <a-scene
+      embedded
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true;"
+      arjs="sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;">
+
+      <!-- Camera with GPS support -->
+      <a-camera
+        gps-camera
+        rotation-reader
+        look-controls="enabled: false">
+      </a-camera>
+
+      <!-- Place 3D model at specific GPS location -->
+      <a-entity
+        gps-entity-place="latitude: 37.7749; longitude: -122.4194;"
+        gltf-model="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf"
+        scale="5 5 5"
+        animation-mixer>
+      </a-entity>
+
+      <!-- Add a simple box at another location -->
+      <a-box
+        gps-entity-place="latitude: 37.7750; longitude: -122.4195;"
+        color="red"
+        scale="3 3 3">
+      </a-box>
+
+      <!-- Ambient light for better visibility -->
+      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
+
+    </a-scene>
+  </body>
+</html>
