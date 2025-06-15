@@ -74,11 +74,7 @@
           statusEl.style.display = 'none';
           arContainer.style.display = 'block';
 
-          // 端末向きに応じてモデルのスケールを変更
-          const isPortrait = window.innerHeight > window.innerWidth;
-          const scaleVal = isPortrait ? '2 0.5 1' : '0.5 2 1';
-
-          // AR シーン構築
+          // シーン構築
           const scene = document.createElement('a-scene');
           scene.setAttribute('embedded', '');
           scene.setAttribute('vr-mode-ui', 'enabled: false');
@@ -92,12 +88,23 @@
           camera.setAttribute('look-controls', '');
           scene.appendChild(camera);
 
-          // 3Dモデル配置
+          // 3Dモデル
           const model = document.createElement('a-entity');
           model.setAttribute('gps-entity-place', `latitude: 37.361428; longitude: -122.042800`);
           model.setAttribute('gltf-model', 'models/castle3.glb');
-          model.setAttribute('scale', scaleVal);
           scene.appendChild(model);
+
+          // スケール更新関数
+          function updateModelScale() {
+            const isPortrait = window.innerHeight > window.innerWidth;
+            const scaleVal = isPortrait ? '2 0.5 1' : '.5 2 1';
+            model.setAttribute('scale', scaleVal);
+          }
+          // 初回設定
+          updateModelScale();
+          // 向きやサイズ変更時に再設定
+          window.addEventListener('orientationchange', updateModelScale);
+          window.addEventListener('resize', updateModelScale);
 
           // 環境光
           const light = document.createElement('a-entity');
