@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Marker-based AR Example</title>
+    
+<!-- A-Frame itself -->
+<script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+
+<!-- Pure three.js code that the A-Frame components use for location-based AR 
+<script type='text/javascript' src='https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/build/ar-threex-location-only.js'></script>-->
+
+<!-- AR.js A-Frame components -->
+<script type='text/javascript' src='https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js'></script>
+    
+    <style>
+      body, html {
+        margin: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+      #ar-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  
+  <body>
+    <div id="ar-container">
+      <!-- 
+        Setup A-Frame scene with AR.js. 
+        'sourceType: webcam' means we’ll use the webcam for marker detection.
+        'debugUIEnabled: false' hides AR.js’ debug info in the top-left corner.
+      -->
+        <a-scene
+        vr-mode-ui="enabled: false"
+		embedded
+        arjs='sourceType: webcam; sourceWidth:1280; sourceHeight:960; displayWidth: 1280; displayHeight: 960; debugUIEnabled: false;'>
+        
+     
+        <!-- 
+          Marker: for testing, use preset="hiro". 
+          You can print out a Hiro marker from AR.js docs, or create a custom marker 
+        -->
+        <!--<a-marker preset="hiro"> -->
+          
+          <!-- Example 1: House model -->
+          <!-- 
+            Suppose your house model is created in Blender and exported as a GLTF or GLB 
+            to keep the correct scale. Place it in a 'models/' folder.  
+          -->
+        <a-entity   gltf-model="url(models/castle3.glb)" 
+                    rotation="0 180 0" 
+                    scale="1 1 1" 
+                    gps-new-entity-place="longitude: -122.041786; latitude: 37.361071;" 
+                    position="0 5 0"
+                    />
+          
+          <!-- Example 2: “Outside Walls” or fences (optional) -->
+          <!-- 
+            If you have separate walls, you can add them as well. 
+            Adjust position and scale so they look correct around the house.
+        
+          <a-entity
+            gltf-model="url(models/outside_walls.glb)"
+            position="0 0 0"
+            rotation="0 0 0"
+            scale="1 1 1"
+          ></a-entity>-->
+          
+        </a-marker>
+        
+        <!-- A-Frame camera -->
+            <a-camera gps-new-camera rotation-reader></a-camera>
+	    </a-scene>
+    </div>
+  </body>
+</html>
