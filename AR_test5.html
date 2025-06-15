@@ -33,12 +33,12 @@
     <div id="instructions">
       <p>Allow location and camera access to see AR content at the specified GPS coordinates.</p>
     </div>
-
+    <button id="start-ar">Start AR</button>
     <a-scene
       embedded
       vr-mode-ui="enabled: false"
       renderer="logarithmicDepthBuffer: true;"
-      arjs="sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;">
+      >
 
       <!-- Camera with GPS support -->
       <a-camera
@@ -66,5 +66,16 @@
       <a-entity light="type: ambient; intensity: 0.8"></a-entity>
 
     </a-scene>
+
+<script>
+  document.querySelector('#start-ar').addEventListener('click', () => {
+    // Now add AR.js (this will prompt for location+camera)
+    document
+      .querySelector('#ar-scene')
+      .setAttribute('arjs', 'sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100;');
+    document.getElementById('start-ar').style.display = 'none';
+  });
+</script>
+
   </body>
 </html>
