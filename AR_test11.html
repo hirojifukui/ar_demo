@@ -77,7 +77,7 @@
           scene.setAttribute('embedded', '');
           scene.setAttribute('vr-mode-ui', 'enabled: false');
           scene.setAttribute('renderer', 'logarithmicDepthBuffer: true');
-          scene.setAttribute('arjs', 'sourceType: webcam; embedded: true; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;');
+          scene.setAttribute('arjs', 'sourceType: webcam; embedded: true; gpsMinDistance: 1; gpsMaxDistance: 200; debugUIEnabled: false;');
           scene.style.width  = '100%';
           scene.style.height = '100%';
 
@@ -87,7 +87,7 @@
           scene.appendChild(camera);
 
           const model = document.createElement('a-entity');
-          model.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon}`);
+          model.setAttribute('gps-entity-place', `latitude: 37.361428; longitude: -122.042800`);
           model.setAttribute('gltf-model', 'models/castle3.glb');
           model.setAttribute('scale', '1 1 1');
           scene.appendChild(model);
