@@ -1,14 +1,13 @@
-window.onload = () => {
-     let places = staticLoadPlaces();
-     document.querySelector('#enable-location-btn').addEventListener('click', () => {
-     navigator.geolocation.getCurrentPosition(
-     pos => console.log(pos),
-     err => console.error(err)
-     );
-    });
+ 
+document.querySelector('#enable-location-btn').addEventListener('click', () => {
+    navigator.geolocation.getCurrentPosition(
+    pos => console.log(pos),
+    err => console.error(err),
+    );
+});
+let places = staticLoadPlaces();
+renderPlaces(places);
 
-     renderPlaces(places);
-};
 
 function staticLoadPlaces() {
     return [
