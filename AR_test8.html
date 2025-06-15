@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>位置情報取得 & AR 表示</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; text-align: center; }
+    #getLocation, #status { margin: 1rem; }
+    #status { white-space: pre-line; }
+    #ar-container { width: 100vw; height: 100vh; display: none; }
+  </style>
+</head>
+<body>
+  <h1>ARモデル表示</h1>
+  <button id="getLocation">位置情報を取得してAR開始</button>
+  <div id="status"></div>
+  <div id="ar-container"></div>
+
+  <script>
+    const btn = document.getElementById('getLocation');
+    const statusEl = document.getElementById('status');
+    const arContainer = document.getElementById('ar-container');
+
+    btn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'このブラウザは位置情報取得に対応していません。';
+        return;
+      }
+
+      statusEl.textContent = '位置情報を取得中…';
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const { latitude, longitude } = position.coords;
+          statusEl.textContent = `緯度: ${latitude.toFixed(6)}\n経度: ${longitude.toFixed(6)}`;
+          initAR(latitude, longitude);
+        },
+        error => {
+          statusEl.textContent = `位置情報取得エラー (${error.code}): ${error.message}`;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+
+    function initAR(lat, lon) {
+      // ボタンとステータスを非表示
+      btn.style.display = 'none';
+      statusEl.style.display = 'none';
+      // ARコンテナ表示
+      arContainer.style.display = 'block';
+
+      // A-FrameとAR.jsを動的に読み込み
+      const aframe = document.createElement('script');
+      aframe.src = 'https://aframe.io/releases/1.2.0/aframe.min.js';
+      document.head.appendChild(aframe);
+
+      const arjs = document.createElement('script');
+      arjs.src = 'https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js';
+      arjs.onload = () => {
+        // シーン要素を作成
+        const scene = document.createElement('a-scene');
+        scene.setAttribute('embedded', '');
+        scene.setAttribute('arjs', 'sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;');
+        scene.style.width = '100%';
+        scene.style.height = '100%';
+
+        // カメラ
+        const camera = document.createElement('a-camera');
+        camera.setAttribute('gps-camera', '');
+        camera.setAttribute('look-controls', 'enabled: false');
+        scene.appendChild(camera);
+
+        // 3Dモデル
+        const model = document.createElement('a-entity');
+        model.setAttribute('gps-entity-place', `latitude: 37.3613049; longitude: -122.0462385;`);
+        model.setAttribute('gltf-model', 'models/castle3.glb');
+        model.setAttribute('scale', '1 1 1');
+        scene.appendChild(model);
+
+        // 環境光
+        const light = document.createElement('a-entity');
+        light.setAttribute('light', 'type: ambient; intensity: 0.8');
+        scene.appendChild(light);
+
+        arContainer.appendChild(scene);
+      };
+      document.head.appendChild(arjs);
+    }
+  </script>
+</body>
+</html>
