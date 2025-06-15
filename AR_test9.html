@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>位置情報取得 & AR 表示</title>
+  <!-- A-Frame と AR.js を head に先行読み込み -->
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <style>
+    body { margin: 0; font-family: sans-serif; text-align: center; }
+    #getLocation, #status { margin: 1rem; }
+    #status { white-space: pre-line; }
+    #ar-container { display: none; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <h1>ARモデルを表示</h1>
+  <button id="getLocation">位置情報を取得してAR開始</button>
+  <div id="status"></div>
+  <div id="ar-container"></div>
+
+  <script>
+    const btn = document.getElementById('getLocation');
+    const statusEl = document.getElementById('status');
+    const arContainer = document.getElementById('ar-container');
+
+    btn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'このブラウザは位置情報取得に対応していません。';
+        return;
+      }
+
+      statusEl.textContent = '位置情報を取得中…';
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          const { latitude, longitude } = coords;
+          statusEl.textContent = `緯度: ${latitude.toFixed(6)}\n経度: ${longitude.toFixed(6)}`;
+
+          // ARシーンをインラインで挿入
+          arContainer.innerHTML = `
+            <a-scene
+              embedded
+              vr-mode-ui="enabled: false"
+              renderer="logarithmicDepthBuffer: true"
+              arjs="sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;">
+
+              <a-camera gps-camera look-controls="enabled: false"></a-camera>
+
+              <a-entity
+                gps-entity-place="latitude: ${latitude}; longitude: ${longitude}"
+                gltf-model="models/castle3.glb"
+                scale="1 1 1">
+              </a-entity>
+
+              <a-entity light="type: ambient; intensity: 1"></a-entity>
+            </a-scene>
+          `;
+
+          btn.style.display = 'none';
+          statusEl.style.display = 'none';
+          arContainer.style.display = 'block';
+        },
+        error => {
+          statusEl.textContent = `位置情報取得エラー (${error.code}): ${error.message}`;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  </script>
+</body>
+</html>
