@@ -2,81 +2,66 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Location-based AR with A-Frame & AR.js</title>
-    <!-- A-Frame library -->
+    <title>Deferred Location-based AR</title>
+    <!-- A-Frame core library -->
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <!-- AR.js for A-Frame -->
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <!-- Optional: rotation-reader component to log device orientation -->
-    <script>
-      AFRAME.registerComponent('rotation-reader', {
-        tick: function () {
-          // Log rotation for debugging
-          console.log(this.el.object3D.rotation);
-        }
-      });
-    </script>
     <style>
       body { margin: 0; overflow: hidden; }
-      #instructions {
+      #start-ar {
         position: absolute;
-        top: 10px;
-        left: 10px;
-        background: rgba(0,0,0,0.5);
+        z-index: 1;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 1em 2em;
+        font-size: 1.2em;
+        background: rgba(0,0,0,0.8);
         color: #fff;
-        padding: 10px;
-        font-family: sans-serif;
+        border: none;
+        border-radius: 4px;
       }
     </style>
   </head>
   <body>
-    <button id="start-ar">Start AR</button>
-    <div id="instructions">
-      <p>Allow location and camera access to see AR content at the specified GPS coordinates.</p>
-    </div>
+    <!-- User gesture button to trigger AR initialization -->
+    <button id="start-ar">Start AR Experience</button>
 
+    <!-- AR scene without arjs attribute initially -->
     <a-scene
+      id="ar-scene"
       embedded
-      vr-mode-ui="enabled: false"
       renderer="logarithmicDepthBuffer: true;"
-      >
+      vr-mode-ui="enabled: false">
 
-      <!-- Camera with GPS support -->
-      <a-camera
-        gps-camera
-        rotation-reader
-        look-controls="enabled: false">
-      </a-camera>
+      <!-- Camera will be enabled for GPS after AR.js loads -->
+      <a-camera gps-camera look-controls="enabled: false"></a-camera>
 
-      <!-- Place 3D model at specific GPS location -->
+      <!-- Example entity at fixed GPS location -->
       <a-entity
-        gps-entity-place="latitude: 37.7749; longitude: -122.4194;"
+        gps-entity-place="latitude:37.7749; longitude:-122.4194;"
         gltf-model="https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF/Duck.gltf"
         scale="5 5 5"
         animation-mixer>
       </a-entity>
 
-      <!-- Add a simple box at another location -->
-      <a-box
-        gps-entity-place="latitude: 37.7750; longitude: -122.4195;"
-        color="red"
-        scale="3 3 3">
-      </a-box>
-
-      <!-- Ambient light for better visibility -->
-      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
-
     </a-scene>
 
-<script>
-  document.querySelector('#start-ar').addEventListener('click', () => {
-    // Now add AR.js (this will prompt for location+camera)
-    document
-      .querySelector('#ar-scene')
-      .setAttribute('arjs', 'sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100;');
-    document.getElementById('start-ar').style.display = 'none';
-  });
-</script>
-
+    <script>
+      document.getElementById('start-ar').addEventListener('click', () => {
+        // Dynamically load AR.js only after user gesture
+        const script = document.createElement('script');
+        script.src = 'https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js';
+        script.onload = () => {
+          // Initialize AR.js on the scene, triggering location + camera prompts
+          document.getElementById('ar-scene').setAttribute(
+            'arjs',
+            'sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100;'
+          );
+          // Hide the start button
+          document.getElementById('start-ar').style.display = 'none';
+        };
+        document.head.appendChild(script);
+      });
+    </script>
   </body>
 </html>
