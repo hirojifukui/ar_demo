@@ -3,38 +3,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>位置情報取得アプリ</title>
+  <title>Geolocation Permission Test</title>
   <style>
-    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+    body { font-family: sans-serif; padding: 2rem; text-align: center; }
     button { padding: 0.8rem 1.2rem; font-size: 1rem; cursor: pointer; }
-    .info { margin-top: 1rem; }
-    .info p { margin: 0.4rem 0; }
+    #status { margin-top: 1rem; }
   </style>
 </head>
 <body>
-  <h1>現在の緯度・経度を取得</h1>
-  <button id="getLocation">位置情報を取得</button>
-  <div class="info" id="output">
-    <p>緯度: <span id="latitude">-</span></p>
-    <p>経度: <span id="longitude">-</span></p>
-    <p id="status"></p>
-  </div>
+  <h1>Geolocation Permission Test</h1>
+  <button id="getLocation">位置情報の権限をテスト</button>
+  <div id="status"></div>
 
   <script>
-  document.getElementById('getLocation').addEventListener('click', async () => {
-    // 1. Permission API で現在ステータスを取得
-    const status = await navigator.permissions.query({ name: 'geolocation' });
-    console.log('geolocation permission state:', status.state);
-    status.onchange = () =>
-      console.log('permission state changed to:', status.state);
+    document.getElementById('getLocation').addEventListener('click', async () => {
+      const status = await navigator.permissions.query({ name: 'geolocation' });
+      console.log('geolocation permission state:', status.state);
+      document.getElementById('status').textContent = `Permission state: ${status.state}`;
+      status.onchange = () => {
+        console.log('permission state changed to:', status.state);
+        document.getElementById('status').textContent = `Permission state: ${status.state}`;
+      };
 
-    // 2. 実際に位置情報を取得
-    navigator.geolocation.getCurrentPosition(
-      pos => console.log('位置情報:', pos.coords),
-      err => console.error('エラーコード:', err.code, err.message)
-    );
-  });
-</script>
-
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          console.log('位置情報:', pos.coords);
+          document.getElementById('status').textContent += `\nLatitude: ${pos.coords.latitude.toFixed(6)}, Longitude: ${pos.coords.longitude.toFixed(6)}`;
+        },
+        err => {
+          console.error('エラーコード:', err.code, err.message);
+          document.getElementById('status').textContent += `\nError ${err.code}: ${err.message}`;
+        }
+      );
+    });
+  </script>
 </body>
 </html>
