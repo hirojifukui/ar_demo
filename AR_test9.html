@@ -45,10 +45,10 @@
               renderer="logarithmicDepthBuffer: true"
               arjs="sourceType: webcam; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;">
 
-              <a-camera gps-new-camera look-controls="enabled: false"></a-camera>
+              <a-camera gps-camera look-controls="enabled: false"></a-camera>
 
               <a-entity
-                gps-new-entity-place="latitude: 37.361394; longitude: -122.042800"
+                gps-entity-place="latitude: ${latitude}; longitude: ${longitude}"
                 gltf-model="models/castle3.glb"
                 scale="1 1 1">
               </a-entity>
