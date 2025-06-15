@@ -23,23 +23,13 @@
       width: 100vw;
       height: 100vh;
       z-index: 5;
-      background: black;
     }
-    /* ビデオとキャンバスは画面にフィット（cover）してアスペクト比を維持 */
-    #ar-container video,
-    #ar-container a-scene,
-    #ar-container a-scene canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      object-position: center center;
+    /* Portrait と Landscape で全画面カバー */
+    @media (orientation: portrait) {
+      #ar-container { width: 100vw; height: 100vh; }
     }
-    /* シーンの背景は透明 */
-    #ar-container a-scene canvas {
-      background: transparent;
+    @media (orientation: landscape) {
+      #ar-container { width: 100vw; height: 100vh; }
     }
   </style>
 </head>
@@ -53,7 +43,6 @@
     const statusEl = document.getElementById('status');
     const arContainer = document.getElementById('ar-container');
 
-    // iOS 向けデバイス向きセンサーアクセス
     async function requestOrientationPermission() {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -85,9 +74,9 @@
           statusEl.style.display = 'none';
           arContainer.style.display = 'block';
 
-          // 端末向きでモデルのスケールを調整（均一スケールでアスペクト比維持）
+          // 端末向きに応じてモデルのスケールを変更
           const isPortrait = window.innerHeight > window.innerWidth;
-          const scaleVal = isPortrait ? '1 0.85 1' : '1 1.3 1';
+          const scaleVal = isPortrait ? '2 4 2' : '4 2 2';
 
           // AR シーン構築
           const scene = document.createElement('a-scene');
@@ -95,6 +84,7 @@
           scene.setAttribute('vr-mode-ui', 'enabled: false');
           scene.setAttribute('renderer', 'logarithmicDepthBuffer: true');
           scene.setAttribute('arjs', 'sourceType: webcam; embedded: true; gpsMinDistance: 1; gpsMaxDistance: 200; debugUIEnabled: false;');
+          scene.style.width = '100%'; scene.style.height = '100%';
 
           // カメラ
           const camera = document.createElement('a-camera');
