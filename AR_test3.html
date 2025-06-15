@@ -38,7 +38,7 @@
         <a-scene
         vr-mode-ui="enabled: false"
 		embedded
-        arjs='sourceType: webcam; sourceWidth:1280; sourceHeight:960; displayWidth: 1280; displayHeight: 960; debugUIEnabled: false;'>
+        arjs='sourceType: webcam; videoTexture: true; sourceWidth:1280; sourceHeight:960; displayWidth: 1280; displayHeight: 960; debugUIEnabled: false;'>
         
      
         <!-- 
@@ -55,7 +55,7 @@
         <a-entity   gltf-model="models/castle3.glb" 
                     rotation="0 0 0" 
                     scale="1 1 1" 
-                    gps-new-entity-place="longitude: -122.041786; latitude: 37.361071;" 
+                    gps-new-entity-place="longitude: -122.041786; latitude: 37.361071" 
                     position="0 5 0"
                     />
           
