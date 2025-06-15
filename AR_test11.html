@@ -1,24 +1,37 @@
 <!DOCTYPE html>
-<!-- 3Dモデルが正常に表示されているようだ。
-3Dモデルが確実に A-Frame によってレンダリングされるよう、
-innerHTML ではなく DOM 操作で <a-scene> と子エンティティを生成・追加する方式に変更しました。 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>位置情報取得 & AR 表示 (デバイス回転対応)</title>
+  <title>位置情報取得 & AR 表示</title>
   <!-- A-Frame と AR.js を先読み -->
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
   <style>
-    body { margin: 0; font-family: sans-serif; text-align: center; }
-    #getLocation, #status { margin: 1rem; }
+    html, body { margin: 0; padding: 0; overflow: hidden; }
+    body { font-family: sans-serif; text-align: center; }
+    #getLocation, #status { position: relative; z-index: 10; margin: 1rem; }
     #status { white-space: pre-line; }
-    #ar-container { display: none; width: 100vw; height: 100vh; }
+    /* 全画面固定表示 */
+    #ar-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 5;
+    }
+    /* Portrait と Landscape で全画面カバー */
+    @media (orientation: portrait) {
+      #ar-container { width: 100vw; height: 100vh; }
+    }
+    @media (orientation: landscape) {
+      #ar-container { width: 100vw; height: 100vh; }
+    }
   </style>
 </head>
 <body>
-  <h1>ARモデルを表示</h1>
   <button id="getLocation">位置情報を取得してAR開始</button>
   <div id="status"></div>
   <div id="ar-container"></div>
@@ -28,7 +41,6 @@ innerHTML ではなく DOM 操作で <a-scene> と子エンティティを生成
     const statusEl    = document.getElementById('status');
     const arContainer = document.getElementById('ar-container');
 
-    // iOS 13+ 向けにデバイス向き権限をリクエスト
     async function requestOrientationPermission() {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -55,12 +67,12 @@ innerHTML ではなく DOM 操作で <a-scene> と子エンティティを生成
           const lon = coords.longitude;
           statusEl.textContent = `緯度: ${lat.toFixed(6)}\n経度: ${lon.toFixed(6)}`;
 
-          // UI 隠す
+          // UI を隠す
           btn.style.display    = 'none';
           statusEl.style.display = 'none';
           arContainer.style.display = 'block';
 
-          // シーン生成
+          // AR シーン構築
           const scene = document.createElement('a-scene');
           scene.setAttribute('embedded', '');
           scene.setAttribute('vr-mode-ui', 'enabled: false');
@@ -69,20 +81,17 @@ innerHTML ではなく DOM 操作で <a-scene> と子エンティティを生成
           scene.style.width  = '100%';
           scene.style.height = '100%';
 
-          // カメラ
           const camera = document.createElement('a-camera');
           camera.setAttribute('gps-camera', '');
           camera.setAttribute('look-controls', '');
           scene.appendChild(camera);
 
-          // 3Dモデル
           const model = document.createElement('a-entity');
           model.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon}`);
           model.setAttribute('gltf-model', 'models/castle3.glb');
           model.setAttribute('scale', '1 1 1');
           scene.appendChild(model);
 
-          // 環境光
           const light = document.createElement('a-entity');
           light.setAttribute('light', 'type: ambient; intensity: 1');
           scene.appendChild(light);
