@@ -29,6 +29,8 @@
     </style>
   </head>
   
+  <script src="./scripts/script.js"></script>
+
   <body>
     <div id="ar-container">
       <!-- 
@@ -42,38 +44,7 @@
         arjs='sourceType: webcam; videoTexture: true; sourceWidth:1280; sourceHeight:960; displayWidth: 1280; displayHeight: 960; debugUIEnabled: false;'>
         
      
-        <!-- 
-          Marker: for testing, use preset="hiro". 
-          You can print out a Hiro marker from AR.js docs, or create a custom marker 
-        -->
-        <!--<a-marker preset="hiro"> -->
-          
-          <!-- Example 1: House model -->
-          <!-- 
-            Suppose your house model is created in Blender and exported as a GLTF or GLB 
-            to keep the correct scale. Place it in a 'models/' folder.  
-          -->
-        <a-entity   gltf-model="models/castle3.glb" 
-                    rotation="0 0 0" 
-                    scale="1 1 1" 
-                    gps-new-entity-place="longitude: -122.041786; latitude: 37.361071" 
-                    position="0 5 0"
-                    />
-          
-          <!-- Example 2: “Outside Walls” or fences (optional) -->
-          <!-- 
-            If you have separate walls, you can add them as well. 
-            Adjust position and scale so they look correct around the house.
-        
-          <a-entity
-            gltf-model="url(models/outside_walls.glb)"
-            position="0 0 0"
-            rotation="0 0 0"
-            scale="1 1 1"
-          ></a-entity>-->
-          
-        </a-marker>
-        
+
         <!-- A-Frame camera -->
             <a-camera gps-new-camera rotation-reader></a-camera>
 	    </a-scene>
