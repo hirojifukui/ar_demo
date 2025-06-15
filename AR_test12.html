@@ -1,41 +1,43 @@
 <!DOCTYPE html>
+<!--3Dモデルを全画面で表示可能。
+ポートレートの場合に縦長、ランドスケープモードの場合に横長になる-->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>位置情報取得 & AR 表示</title>
   <!-- A-Frame と AR.js を先読み -->
-  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; }
+    body { font-family: sans-serif; text-align: center; }
     #getLocation, #status { position: relative; z-index: 10; margin: 1rem; }
     #status { white-space: pre-line; }
-
-    /* 全画面表示コンテナ */
+    /* 全画面固定表示 */
     #ar-container {
       display: none;
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       z-index: 5;
       background: black;
     }
-
-    /* ビデオとキャンバスを画面に収まるように表示 (contain) */
+    /* ビデオとキャンバスは画面にフィット（cover）してアスペクト比を維持 */
     #ar-container video,
     #ar-container a-scene,
     #ar-container a-scene canvas {
       position: absolute;
-      top: 0; left: 0; bottom: 0; right: 0;
-      margin: auto;
-      max-width: 100vw;
-      max-height: 100vh;
-      object-fit: contain;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
       object-position: center center;
     }
-
-    /* キャンバスは背景透過 */
+    /* シーンの背景は透明 */
     #ar-container a-scene canvas {
       background: transparent;
     }
@@ -47,21 +49,25 @@
   <div id="ar-container"></div>
 
   <script>
-    const btn         = document.getElementById('getLocation');
-    const statusEl    = document.getElementById('status');
+    const btn = document.getElementById('getLocation');
+    const statusEl = document.getElementById('status');
     const arContainer = document.getElementById('ar-container');
 
-    // iOS向けデバイス向き権限取得
+    // iOS 向けデバイス向きセンサーアクセス
     async function requestOrientationPermission() {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try { await DeviceOrientationEvent.requestPermission(); }
-        catch (e) { console.warn('Orientation permission denied', e); }
+        try {
+          await DeviceOrientationEvent.requestPermission();
+        } catch (e) {
+          console.warn('Orientation permission denied', e);
+        }
       }
     }
 
     btn.addEventListener('click', async () => {
       await requestOrientationPermission();
+
       if (!navigator.geolocation) {
         statusEl.textContent = 'このブラウザは位置情報取得に対応していません。';
         return;
@@ -75,28 +81,35 @@
           statusEl.textContent = `緯度: ${lat.toFixed(6)}\n経度: ${lon.toFixed(6)}`;
 
           // UI を隠す
-          btn.style.display      = 'none';
+          btn.style.display = 'none';
           statusEl.style.display = 'none';
           arContainer.style.display = 'block';
 
-          // シーン生成
+          // 端末向きでモデルのスケールを調整（均一スケールでアスペクト比維持）
+          const isPortrait = window.innerHeight > window.innerWidth;
+          const scaleVal = isPortrait ? '1 0.85 1' : '1 1.3 1';
+
+          // AR シーン構築
           const scene = document.createElement('a-scene');
           scene.setAttribute('embedded', '');
           scene.setAttribute('vr-mode-ui', 'enabled: false');
           scene.setAttribute('renderer', 'logarithmicDepthBuffer: true');
-          scene.setAttribute('arjs', 'sourceType: webcam; embedded: true; gpsMinDistance: 1; gpsMaxDistance: 100; debugUIEnabled: false;');
+          scene.setAttribute('arjs', 'sourceType: webcam; embedded: true; gpsMinDistance: 1; gpsMaxDistance: 200; debugUIEnabled: false;');
 
+          // カメラ
           const camera = document.createElement('a-camera');
           camera.setAttribute('gps-camera', '');
           camera.setAttribute('look-controls', '');
           scene.appendChild(camera);
 
+          // 3Dモデル配置
           const model = document.createElement('a-entity');
           model.setAttribute('gps-entity-place', `latitude: 37.361428; longitude: -122.042800`);
           model.setAttribute('gltf-model', 'models/castle3.glb');
-          model.setAttribute('scale', '1 1 1');
+          model.setAttribute('scale', scaleVal);
           scene.appendChild(model);
 
+          // 環境光
           const light = document.createElement('a-entity');
           light.setAttribute('light', 'type: ambient; intensity: 1');
           scene.appendChild(light);
