@@ -3,37 +3,52 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Geolocation Permission Test</title>
+  <title>位置情報取得テスト</title>
   <style>
     body { font-family: sans-serif; padding: 2rem; text-align: center; }
     button { padding: 0.8rem 1.2rem; font-size: 1rem; cursor: pointer; }
-    #status { margin-top: 1rem; }
+    #status { margin-top: 1rem; white-space: pre-line; }
   </style>
 </head>
 <body>
-  <h1>Geolocation Permission Test</h1>
-  <button id="getLocation">位置情報の権限をテスト</button>
+  <h1>Geolocation テスト</h1>
+  <button id="getLocation">位置情報を取得</button>
   <div id="status"></div>
 
   <script>
-    document.getElementById('getLocation').addEventListener('click', async () => {
-      const status = await navigator.permissions.query({ name: 'geolocation' });
-      console.log('geolocation permission state:', status.state);
-      document.getElementById('status').textContent = `Permission state: ${status.state}`;
-      status.onchange = () => {
-        console.log('permission state changed to:', status.state);
-        document.getElementById('status').textContent = `Permission state: ${status.state}`;
-      };
+    const btn = document.getElementById('getLocation');
+    const statusEl = document.getElementById('status');
+
+    btn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'このブラウザは位置情報取得に対応していません。';
+        return;
+      }
+
+      statusEl.textContent = '位置情報を取得中…';
 
       navigator.geolocation.getCurrentPosition(
-        pos => {
-          console.log('位置情報:', pos.coords);
-          document.getElementById('status').textContent += `\nLatitude: ${pos.coords.latitude.toFixed(6)}, Longitude: ${pos.coords.longitude.toFixed(6)}`;
+        position => {
+          const { latitude, longitude } = position.coords;
+          statusEl.textContent = `取得成功:\n緯度: ${latitude.toFixed(6)}\n経度: ${longitude.toFixed(6)}`;
         },
-        err => {
-          console.error('エラーコード:', err.code, err.message);
-          document.getElementById('status').textContent += `\nError ${err.code}: ${err.message}`;
-        }
+        error => {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              statusEl.innerHTML = '位置情報の利用が拒否されました。\nブラウザ設定でこのサイトの位置情報利用を「許可」にしてください。';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              statusEl.textContent = '位置情報が利用できません。';
+              break;
+            case error.TIMEOUT:
+              statusEl.textContent = '位置情報の取得に時間がかかり過ぎました。';
+              break;
+            default:
+              statusEl.textContent = '不明なエラーが発生しました。';
+              break;
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     });
   </script>
