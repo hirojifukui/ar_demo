@@ -9,6 +9,7 @@
   <!-- A-Frame と AR.js を先読み -->
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+  <script type='text/javascript' src='https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/build/ar-threex-location-only.js'></script>
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; }
     body { font-family: sans-serif; text-align: center; }
@@ -86,11 +87,14 @@
           const camera = document.createElement('a-camera');
           camera.setAttribute('gps-camera', '');
           camera.setAttribute('look-controls', '');
+          camera.setAttribute('simulateLatitude', '35.360841');
+          camera.setAttribute('simulateLongitude', '133.185307');
+          camera.setAttribute('simulateAltitude', '0');
           scene.appendChild(camera);
 
           // 3Dモデル
           const model = document.createElement('a-entity');
-          model.setAttribute('gps-entity-place', `latitude: 37.361428; longitude: -122.042800`);
+          model.setAttribute('gps-entity-place', `latitude: 35.3605451; longitude: 133.1856385`);
           model.setAttribute('gltf-model', 'models/castle3.glb');
           scene.appendChild(model);
 
