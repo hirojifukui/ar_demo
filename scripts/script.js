@@ -1,5 +1,12 @@
 window.onload = () => {
      let places = staticLoadPlaces();
+     document.querySelector('#enable-location-btn').addEventListener('click', () => {
+     navigator.geolocation.getCurrentPosition(
+     pos => console.log(pos),
+     err => console.error(err)
+     );
+    });
+
      renderPlaces(places);
 };
 
@@ -24,7 +31,7 @@ function renderPlaces(places) {
 
         let model = document.createElement('a-entity');
         model.setAttribute('gps-entity-place', `latitude: ${latitude}; longitude: ${longitude};`);
-        model.setAttribute('gltf-model', './model/castle3.glb');
+        model.setAttribute('gltf-model', './models/castle3.glb');
         model.setAttribute('rotation', '0 0 0');
         model.setAttribute('scale', '1 1 1');
 
